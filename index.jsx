@@ -1,0 +1,1583 @@
+import { useState, useEffect, useRef, useMemo } from "react";
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  GOLF COMUNIO · Editorial v3
+//  Fonts: Fraunces (display) + JetBrains Mono (numbers)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── DATA ─────────────────────────────────────────────────────────────────────
+const GOLFERS = ["Monin", "Lomas", "Tulio", "Montero", "Jorge", "Heras"];
+
+// "Río" = Monin · "Marqués/Marques" = Tulio · "Jaime" = Heras
+const PREDICTIONS = {
+  Heras:   { Monin: 77, Lomas: 82, Tulio: 92,  Montero: 90, Jorge: 102, Heras: 110 },
+  Jorge:   { Monin: 79, Lomas: 90, Tulio: 102, Montero: 96, Jorge: 99,  Heras: 109 },
+  Montero: { Monin: 79, Lomas: 88, Tulio: 98,  Montero: 95, Jorge: 102, Heras: 109 },
+  Tulio:   { Monin: 76, Lomas: 83, Tulio: 96,  Montero: 95, Jorge: 103, Heras: 108 },
+  Lomas:   { Monin: 75, Lomas: 82, Tulio: 93,  Montero: 95, Jorge: 101, Heras: 112 },
+  Monin:   { Monin: 76, Lomas: 83, Tulio: 98,  Montero: 96, Jorge: 102, Heras: 110 },
+};
+const PREDICTORS = Object.keys(PREDICTIONS);
+
+const PARS  = [4, 4, 3, 5, 4, 4, 3, 4, 5, 4, 5, 3, 4, 5, 4, 4, 3, 4]; // par hoyo a hoyo
+const HCPS  = [5, 11, 17, 3, 7, 1, 15, 13, 9, 4, 16, 8, 10, 14, 6, 18, 12, 2]; // hcp index hoyo a hoyo
+const PAR_FRONT = PARS.slice(0, 9).reduce((a, b) => a + b, 0); // 36
+const PAR_BACK  = PARS.slice(9).reduce((a, b) => a + b, 0);    // 36
+const PAR_TOTAL = PAR_FRONT + PAR_BACK;                         // 72
+
+// Identidad por jugador (color + iniciales + handicap)
+const PLAYER = {
+  Monin:   { color: "#C2410C", ink: "#7C2D12", short: "MO", hcp: 0  }, // Río
+  Lomas:   { color: "#1E40AF", ink: "#1E3A8A", short: "LO", hcp: 9  },
+  Tulio:   { color: "#7C3AED", ink: "#5B21B6", short: "TU", hcp: 19 },
+  Montero: { color: "#15803D", ink: "#14532D", short: "MT", hcp: 23 },
+  Jorge:   { color: "#0E7490", ink: "#155E75", short: "JO", hcp: 29 },
+  Heras:   { color: "#B45309", ink: "#78350F", short: "HE", hcp: 37 },
+};
+
+// Devuelve, para un jugador y un hoyo (idx 0..17), cuántos golpes de hcp recibe
+function strokesAtHole(playerHcp, holeIdx) {
+  const hcpIndex = HCPS[holeIdx]; // 1 = más difícil
+  const base = Math.floor(playerHcp / 18);          // golpes que recibe en TODOS los hoyos
+  const extra = playerHcp % 18;                      // golpes extra en los hoyos hcp 1..extra
+  return base + (hcpIndex <= extra ? 1 : 0);
+}
+
+// Categoría por handicap (Cat 1: 0-10 · Cat 2: 11-27 · Cat 3: 28+)
+function getCategory(hcp) {
+  if (hcp <= 10) return 1;
+  if (hcp <= 27) return 2;
+  return 3;
+}
+const CAT_LABEL = { 1: "CAT 1", 2: "CAT 2", 3: "CAT 3" };
+const CAT_RANGE = { 1: "hcp 0-10", 2: "hcp 11-27", 3: "hcp 28+" };
+
+// Stableford: puntos por hoyo según net vs par
+// Net albatross (-3) = 5 · eagle (-2) = 4 · birdie (-1) = 3 · par = 2 · bogey (+1) = 1 · doble+ = 0
+function stablefordOnHole(gross, par, strokes) {
+  if (gross === null || gross === undefined || gross === "") return null;
+  const net = Number(gross) - strokes;
+  const pts = 2 - (net - par);
+  return Math.max(0, pts);
+}
+
+function computeStableford(holes, playerHcp) {
+  let total = 0, front = 0, back = 0, pointsPerHole = [];
+  for (let i = 0; i < 18; i++) {
+    const v = holes[i];
+    const s = strokesAtHole(playerHcp, i);
+    const pts = stablefordOnHole(v, PARS[i], s);
+    pointsPerHole.push(pts);
+    if (pts !== null) {
+      total += pts;
+      if (i < 9) front += pts; else back += pts;
+    }
+  }
+  return { total, front, back, pointsPerHole };
+}
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+const sumHoles = (h, s = 0, e = 18) => h.slice(s, e).reduce((a, x) => a + (Number(x) || 0), 0);
+const filledCount = (h) => h ? h.filter(x => x !== null && x !== "" && x !== undefined).length : 0;
+const isComplete = (h) => h && h.length === 18 && filledCount(h) === 18;
+
+function projectTotal(holes) {
+  const f = filledCount(holes);
+  if (f === 0) return null;
+  if (f === 18) return sumHoles(holes);
+  let played = 0, parRest = 0;
+  for (let i = 0; i < 18; i++) {
+    const v = holes[i];
+    if (v !== null && v !== undefined && v !== "") played += Number(v);
+    else parRest += PARS[i];
+  }
+  return played + parRest;
+}
+
+const fmtPar = (n) => n === 0 ? "E" : n > 0 ? `+${n}` : `${n}`;
+const parClass = (score, par) => {
+  const d = score - par;
+  if (d <= -2) return "eagle";
+  if (d === -1) return "birdie";
+  if (d === 0) return "par";
+  if (d === 1) return "bogey";
+  return "double";
+};
+
+// ─── SCORING ─────────────────────────────────────────────────────────────────
+function computeScores(totals) {
+  const out = {};
+  PREDICTORS.forEach(p => (out[p] = { points: 0, wins: [], details: {} }));
+  GOLFERS.forEach(g => {
+    const a = totals[g];
+    if (a === null || a === undefined) return;
+    const diffs = PREDICTORS.map(p => ({
+      predictor: p, prediction: PREDICTIONS[p][g],
+      diff: Math.abs(PREDICTIONS[p][g] - Number(a)),
+    }));
+    const min = Math.min(...diffs.map(d => d.diff));
+    const winners = diffs.filter(d => d.diff === min);
+    diffs.forEach(d => {
+      out[d.predictor].details[g] = {
+        prediction: d.prediction, diff: d.diff,
+        won: winners.some(w => w.predictor === d.predictor),
+      };
+    });
+    winners.forEach(w => {
+      out[w.predictor].points += 1 / winners.length;
+      out[w.predictor].wins.push(g);
+    });
+  });
+  return out;
+}
+
+// ─── STORAGE ─────────────────────────────────────────────────────────────────
+const KEY = (g) => `gc-holes-v2:${g}`;
+const defaultHoleData = () => Object.fromEntries(GOLFERS.map(g => [g, Array(18).fill(null)]));
+
+async function loadAll() {
+  const data = defaultHoleData();
+  for (const g of GOLFERS) {
+    try {
+      const r = await window.storage.get(KEY(g), true);
+      if (r) {
+        const p = JSON.parse(r.value);
+        if (Array.isArray(p) && p.length === 18) data[g] = p;
+      }
+    } catch {}
+  }
+  return data;
+}
+async function saveOne(g, holes) {
+  try { await window.storage.set(KEY(g), JSON.stringify(holes), true); }
+  catch (e) { console.error(e); }
+}
+
+// ─── ANIMATED NUMBER ─────────────────────────────────────────────────────────
+function Num({ value, decimals = 0, style }) {
+  const [display, setDisplay] = useState(value ?? 0);
+  const prevRef = useRef(value ?? 0);
+  useEffect(() => {
+    if (value === null || value === undefined) { setDisplay(0); return; }
+    const start = prevRef.current;
+    const end = value;
+    const dur = 450;
+    const t0 = performance.now();
+    let raf;
+    const tick = (t) => {
+      const k = Math.min(1, (t - t0) / dur);
+      const eased = 1 - Math.pow(1 - k, 3);
+      setDisplay(start + (end - start) * eased);
+      if (k < 1) raf = requestAnimationFrame(tick);
+      else prevRef.current = end;
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value]);
+  if (value === null || value === undefined) return <span style={style}>—</span>;
+  return <span style={style}>{display.toFixed(decimals)}</span>;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  ROOT APP
+// ═══════════════════════════════════════════════════════════════════════════════
+export default function GolfComunio() {
+  const [tab, setTab] = useState("torneo");
+  const [holeData, setHoleData] = useState(defaultHoleData());
+  const [loading, setLoading] = useState(true);
+  const [saveStatus, setSaveStatus] = useState("idle");
+  const [editingGolfer, setEditingGolfer] = useState(null);
+  const saveTimers = useRef({});
+  const lastEdit = useRef({});
+
+  useEffect(() => { loadAll().then(d => { setHoleData(d); setLoading(false); }); }, []);
+
+  const updateGolfer = (g, newH) => {
+    setHoleData(p => ({ ...p, [g]: newH }));
+    lastEdit.current[g] = Date.now();
+    if (saveTimers.current[g]) clearTimeout(saveTimers.current[g]);
+    setSaveStatus("saving");
+    saveTimers.current[g] = setTimeout(async () => {
+      await saveOne(g, newH);
+      delete saveTimers.current[g];
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus("idle"), 1400);
+    }, 700);
+  };
+
+  useEffect(() => {
+    if (loading) return;
+    let active = true;
+    const id = setInterval(async () => {
+      const fresh = await loadAll();
+      if (!active) return;
+      setHoleData(prev => {
+        const m = { ...fresh };
+        GOLFERS.forEach(g => {
+          const recent = Date.now() - (lastEdit.current[g] || 0) < 3000;
+          const pending = !!saveTimers.current[g];
+          if (g === editingGolfer || recent || pending) m[g] = prev[g];
+        });
+        return m;
+      });
+    }, 5000);
+    return () => { active = false; clearInterval(id); };
+  }, [loading, editingGolfer]);
+
+  const liveTotals = useMemo(() => {
+    const t = {};
+    GOLFERS.forEach(g => { const p = projectTotal(holeData[g] || []); if (p !== null) t[g] = p; });
+    return t;
+  }, [holeData]);
+
+  // Totales DEFINITIVOS (solo cuando la tarjeta está completa) → es lo que usa la porra
+  const finalTotals = useMemo(() => {
+    const t = {};
+    GOLFERS.forEach(g => {
+      const h = holeData[g] || [];
+      if (isComplete(h)) t[g] = sumHoles(h);
+    });
+    return t;
+  }, [holeData]);
+
+  const scores = useMemo(() => computeScores(finalTotals), [finalTotals]);
+  const ranked = useMemo(() => [...PREDICTORS].sort((a, b) => scores[b].points - scores[a].points), [scores]);
+  const completed = GOLFERS.filter(g => isComplete(holeData[g] || [])).length;
+  const inPlay = GOLFERS.filter(g => { const c = filledCount(holeData[g] || []); return c > 0 && c < 18; }).length;
+
+  return (
+    <>
+      <GlobalStyles />
+      <div style={S.root}>
+        <Header completed={completed} inPlay={inPlay} />
+        <Nav tab={tab} setTab={setTab} />
+
+        {!loading && saveStatus !== "idle" && <SaveToast status={saveStatus} />}
+
+        <main style={S.main}>
+          {loading ? (
+            <div style={S.loading}>· · ·</div>
+          ) : tab === "torneo" ? (
+            <TournamentTab holeData={holeData} liveTotals={liveTotals} />
+          ) : tab === "porra" ? (
+            <PorraTab ranked={ranked} scores={scores} finalTotals={finalTotals} holeData={holeData} />
+          ) : tab === "scorecards" ? (
+            <ScoreCards holeData={holeData} updateGolfer={updateGolfer} setEditingGolfer={setEditingGolfer} />
+          ) : (
+            <Predictions liveTotals={liveTotals} scores={scores} holeData={holeData} />
+          )}
+        </main>
+
+        <footer style={S.footer}>
+          <div style={S.footerRule} />
+          <div style={S.footerText}>GOLF COMUNIO · ED. 2025 · 6 JUGADORES · PAR {PAR_TOTAL}</div>
+        </footer>
+      </div>
+    </>
+  );
+}
+
+// ─── HEADER ───────────────────────────────────────────────────────────────────
+function Header({ completed, inPlay }) {
+  return (
+    <header style={S.header}>
+      <div style={S.headerInner}>
+        <div style={S.brand}>
+          <div style={S.monogram}>
+            <svg viewBox="0 0 40 40" width="44" height="44">
+              <circle cx="20" cy="20" r="19" fill="none" stroke={C.gold} strokeWidth="1.5" />
+              <text x="20" y="26" textAnchor="middle" fontSize="16" fontFamily="Fraunces, serif" fontWeight="500" fill={C.gold} fontStyle="italic">gc</text>
+            </svg>
+          </div>
+          <div>
+            <div style={S.brandTitle}>Golf Comunio</div>
+            <div style={S.brandSub}>FANTASY · INVITATIONAL</div>
+          </div>
+        </div>
+
+        <div style={S.headerStats}>
+          <div style={S.statBlock}>
+            <div style={S.statNum}>{completed}</div>
+            <div style={S.statLabel}>FINAL</div>
+          </div>
+          <div style={S.statSep} />
+          <div style={S.statBlock}>
+            <div style={S.statNum}>{inPlay}</div>
+            <div style={S.statLabel}>EN&nbsp;JUEGO</div>
+          </div>
+          <div style={S.statSep} />
+          <div style={S.statBlock}>
+            <div style={S.statNum}>{6 - completed - inPlay}</div>
+            <div style={S.statLabel}>POR&nbsp;SALIR</div>
+          </div>
+        </div>
+      </div>
+      <div style={S.headerRule}>
+        <div style={S.headerRuleLine} />
+        <span style={S.headerRuleStar}>✦</span>
+        <div style={S.headerRuleLine} />
+      </div>
+    </header>
+  );
+}
+
+// ─── NAV ──────────────────────────────────────────────────────────────────────
+function Nav({ tab, setTab }) {
+  const items = [
+    { id: "torneo", label: "Torneo" },
+    { id: "porra", label: "Porra" },
+    { id: "scorecards", label: "Tarjetas" },
+    { id: "predictions", label: "Apuestas" },
+  ];
+  return (
+    <nav style={S.nav}>
+      {items.map(it => (
+        <button key={it.id} onClick={() => setTab(it.id)}
+          style={{ ...S.navBtn, ...(tab === it.id ? S.navBtnOn : {}) }}>
+          {it.label}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+function SaveToast({ status }) {
+  return (
+    <div style={{ ...S.toast, ...(status === "saved" ? S.toastOk : {}) }}>
+      <span style={S.toastDot} />
+      {status === "saving" ? "Guardando" : "Guardado"}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  LEADERBOARD
+// ═══════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
+//  TORNEO TAB · Stableford por categorías
+// ═══════════════════════════════════════════════════════════════════════════════
+function TournamentTab({ holeData, liveTotals }) {
+  return (
+    <div style={S.section}>
+      <SectionHeader eyebrow="TORNEO · STABLEFORD" title="Categorías"
+        subtitle="Clasificación por categoría según puntos Stableford netos. Modalidad oficial del torneo." />
+      <TournamentBoard holeData={holeData} />
+      <CourseStats liveTotals={liveTotals} holeData={holeData} />
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  PORRA TAB · Comunio (apuestas a golpes brutos)
+// ═══════════════════════════════════════════════════════════════════════════════
+function PorraTab({ ranked, scores, finalTotals, holeData }) {
+  const pending = GOLFERS.filter(g => !isComplete(holeData[g] || []));
+  const finished = GOLFERS.filter(g => isComplete(holeData[g] || []));
+
+  return (
+    <div style={S.section}>
+      <SectionHeader eyebrow="PORRA · COMUNIO" title="Apuestas a golpes"
+        subtitle="Cada acierto reparte 1 punto. Una tarjeta cuenta solo cuando se cierra: hasta entonces ese jugador queda pendiente." />
+
+      {/* Status strip */}
+      <div style={S.porraStrip}>
+        <div style={S.porraStripBlock}>
+          <div style={S.porraStripNum}>{finished.length}</div>
+          <div style={S.porraStripLbl}>TARJETAS CERRADAS</div>
+          {finished.length > 0 && (
+            <div style={S.porraStripGolfers}>
+              {finished.map(g => <span key={g} style={S.porraStripChip}>{g}</span>)}
+            </div>
+          )}
+        </div>
+        <div style={S.porraStripSep} />
+        <div style={S.porraStripBlock}>
+          <div style={S.porraStripNum}>{pending.length}</div>
+          <div style={S.porraStripLbl}>PENDIENTES DE CERRAR</div>
+          {pending.length > 0 && (
+            <div style={S.porraStripGolfers}>
+              {pending.map(g => <span key={g} style={{ ...S.porraStripChip, ...S.porraStripChipPending }}>{g}</span>)}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div style={S.podium}>
+        {ranked.slice(0, 3).map((p, i) => (
+          <PodiumCard key={p} player={p} rank={i} score={scores[p]} />
+        ))}
+      </div>
+
+      <div style={S.boardList}>
+        {ranked.map((p, i) => (
+          <PlayerRow key={p} player={p} rank={i + 1} score={scores[p]} liveTotals={finalTotals} holeData={holeData} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── TOURNAMENT BOARD (Stableford por categoría) ──────────────────────────────
+function TournamentBoard({ holeData }) {
+  const cats = { 1: [], 2: [], 3: [] };
+  GOLFERS.forEach(g => {
+    const playerHcp = PLAYER[g].hcp;
+    const cat = getCategory(playerHcp);
+    const holes = holeData[g] || [];
+    const filled = filledCount(holes);
+    const stbl = computeStableford(holes, playerHcp);
+    cats[cat].push({ name: g, filled, complete: filled === 18, stbl });
+  });
+  // Orden: más puntos primero · si empate, el que más hoyos lleva
+  Object.values(cats).forEach(arr =>
+    arr.sort((a, b) => b.stbl.total - a.stbl.total || b.filled - a.filled)
+  );
+
+  return (
+    <div style={S.cats}>
+      {[1, 2, 3].map(cat => (
+        <div key={cat} style={S.cat}>
+          <div style={S.cat__head}>
+            <div style={S.cat__title}>{CAT_LABEL[cat]}</div>
+            <div style={S.cat__range}>{CAT_RANGE[cat]}</div>
+          </div>
+          {cats[cat].length === 0 ? (
+            <div style={S.cat__empty}>Sin jugadores</div>
+          ) : (
+            <div style={S.cat__list}>
+              {cats[cat].map((p, i) => (
+                <CatRow key={p.name} rankInCat={i + 1} {...p} />
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CatRow({ name, filled, complete, stbl, rankInCat }) {
+  const playerHcp = PLAYER[name].hcp;
+  const status = complete ? "FINAL" : filled > 0 ? `THRU ${filled}` : "—";
+  return (
+    <div style={{ ...S.catRow, ...(rankInCat === 1 && filled > 0 ? S.catRowLeader : {}) }}>
+      <div style={S.catRow__rank}>{rankInCat === 1 && filled > 0 ? "★" : rankInCat}</div>
+      <PlayerAvatar name={name} size={32} />
+      <div style={S.catRow__name}>
+        <div style={S.catRow__nameMain}>{name}</div>
+        <div style={S.catRow__nameSub}>HCP {playerHcp} · {status}</div>
+      </div>
+      <div style={S.catRow__pts}>
+        <Num value={stbl.total} style={S.catRow__ptsNum} />
+        <span style={S.catRow__ptsLbl}>pts</span>
+      </div>
+    </div>
+  );
+}
+
+function SectionHeader({ eyebrow, title, subtitle, live }) {
+  return (
+    <div style={S.sectionHeader}>
+      <div style={S.sectionEyebrow}>
+        {live && <span style={S.livePulse} />}
+        {eyebrow}
+      </div>
+      <h1 style={S.sectionTitle}>{title}</h1>
+      {subtitle && <div style={S.sectionSub}>{subtitle}</div>}
+    </div>
+  );
+}
+
+function PodiumCard({ player, rank, score }) {
+  const ROMAN = ["I", "II", "III"];
+  const tints = [
+    { ribbon: C.gold, ribbonInk: C.green },
+    { ribbon: "#9CA3AF", ribbonInk: "#fff" },
+    { ribbon: "#A47148", ribbonInk: "#fff" },
+  ];
+  const t = tints[rank];
+  return (
+    <div style={{ ...S.podium__card, animation: `slideUp 0.5s ${rank * 80}ms backwards cubic-bezier(0.2, 0.9, 0.3, 1.1)` }}>
+      <div style={{ ...S.podium__ribbon, background: t.ribbon, color: t.ribbonInk }}>{ROMAN[rank]}</div>
+      <PlayerAvatar name={player} size={48} />
+      <div style={S.podium__name}>{player}</div>
+      <div style={S.podium__hcp}>HCP {PLAYER[player].hcp}</div>
+      <div style={S.podium__pts}>
+        <Num value={score.points} decimals={score.points % 1 === 0 ? 0 : 1} style={S.podium__ptsNum} />
+        <span style={S.podium__ptsLbl}>pts</span>
+      </div>
+      <div style={S.podium__wins}>
+        {score.wins.length === 0
+          ? <span style={S.podium__noWins}>sin aciertos</span>
+          : score.wins.map(w => <span key={w} style={S.podium__win}>· {w}</span>)}
+      </div>
+    </div>
+  );
+}
+
+function PlayerRow({ player, rank, score, liveTotals, holeData }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ ...S.row, ...(rank === 1 ? S.rowLeader : {}) }} onClick={() => setOpen(o => !o)}>
+      <div style={S.row__rank}>
+        <span style={S.row__rankNum}>{rank}</span>
+        {rank === 1 && <span style={S.row__rankFlag}>⛳</span>}
+      </div>
+      <PlayerAvatar name={player} size={40} />
+      <div style={S.row__name}>
+        <div style={S.row__nameMain}>{player}</div>
+        <div style={S.row__nameSub}>
+          HCP {PLAYER[player].hcp} · {score.wins.length === 0 ? "sin aciertos" : score.wins.length === 1 ? "1 acierto" : `${score.wins.length} aciertos`}
+        </div>
+      </div>
+      <div style={S.row__pts}>
+        <Num value={score.points} decimals={score.points % 1 === 0 ? 0 : 1} style={S.row__ptsNum} />
+        <span style={S.row__ptsLbl}>PTS</span>
+      </div>
+      <div style={{ ...S.row__chev, transform: open ? "rotate(90deg)" : "rotate(0deg)" }}>›</div>
+
+      {open && (
+        <div style={S.row__detail} onClick={e => e.stopPropagation()}>
+          <div style={S.row__detailGrid}>
+            {GOLFERS.map(g => {
+              const d = score.details[g];
+              const total = liveTotals[g];
+              const filled = filledCount(holeData[g] || []);
+              return (
+                <div key={g} style={{ ...S.miniPick, ...(d?.won ? S.miniPickWon : {}) }}>
+                  <div style={S.miniPick__head}>
+                    <PlayerAvatar name={g} size={20} />
+                    <span style={S.miniPick__name}>{g}</span>
+                  </div>
+                  <div style={S.miniPick__pred}>
+                    <span style={S.miniPick__predNum}>{PREDICTIONS[player][g]}</span>
+                    <span style={S.miniPick__predLbl}>apuesta</span>
+                  </div>
+                  {total !== undefined ? (
+                    <div style={S.miniPick__diff}>
+                      {filled === 18 ? <>±{d.diff} · final</> : <>±{d.diff} · ~{filled}/18</>}
+                    </div>
+                  ) : (
+                    <div style={S.miniPick__pending}>pendiente</div>
+                  )}
+                  {d?.won && <div style={S.miniPick__crown}>★</div>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CourseStats({ liveTotals, holeData }) {
+  return (
+    <div style={S.course}>
+      <div style={S.course__title}>EN EL CAMPO</div>
+      <div style={S.course__grid}>
+        {GOLFERS.map(g => {
+          const total = liveTotals[g];
+          const filled = filledCount(holeData[g] || []);
+          const complete = filled === 18;
+          const hcp = PLAYER[g].hcp;
+          const net = total !== undefined ? total - hcp : null;
+          const stbl = computeStableford(holeData[g] || [], hcp);
+          return (
+            <div key={g} style={S.course__card}>
+              <div style={S.course__cardHead}>
+                <PlayerAvatar name={g} size={28} />
+                <div>
+                  <div style={S.course__cardName}>{g}</div>
+                  <div style={S.course__cardHcp}>HCP {hcp} · {CAT_LABEL[getCategory(hcp)]}</div>
+                </div>
+              </div>
+              {total !== undefined ? (
+                <>
+                  <div style={S.course__cardScore}>
+                    <Num value={total} style={S.course__cardScoreNum} />
+                    <span style={{ ...S.course__cardDelta, color: total > PAR_TOTAL ? "#B91C1C" : total < PAR_TOTAL ? "#15803D" : C.text }}>
+                      {fmtPar(total - PAR_TOTAL)}
+                    </span>
+                  </div>
+                  {hcp > 0 && (
+                    <div style={S.course__cardNet}>
+                      net <strong>{net}</strong> · stbl <strong style={{ color: C.gold }}>{stbl.total}</strong>
+                    </div>
+                  )}
+                  {hcp === 0 && stbl.total > 0 && (
+                    <div style={S.course__cardNet}>
+                      stbl <strong style={{ color: C.gold }}>{stbl.total}</strong> pts
+                    </div>
+                  )}
+                  <div style={S.course__cardStatus}>{complete ? "FINAL" : `THRU ${filled}`}</div>
+                </>
+              ) : (
+                <>
+                  <div style={S.course__cardScore}><span style={S.course__cardEmpty}>—</span></div>
+                  <div style={S.course__cardStatus}>NO HA SALIDO</div>
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  SCORECARDS
+// ═══════════════════════════════════════════════════════════════════════════════
+function ScoreCards({ holeData, updateGolfer, setEditingGolfer }) {
+  const [selected, setSelected] = useState(GOLFERS[0]);
+  useEffect(() => {
+    setEditingGolfer(selected);
+    return () => setEditingGolfer(null);
+  }, [selected, setEditingGolfer]);
+
+  const holes = holeData[selected] || Array(18).fill(null);
+  const front = sumHoles(holes, 0, 9);
+  const back = sumHoles(holes, 9, 18);
+  const total = front + back;
+  const filled = filledCount(holes);
+  const complete = isComplete(holes);
+  const proj = projectTotal(holes);
+  const delta = proj !== null ? proj - PAR_TOTAL : null;
+  const playerHcp = PLAYER[selected].hcp;
+  const netProj = proj !== null ? proj - playerHcp : null;
+  const netDelta = netProj !== null ? netProj - PAR_TOTAL : null;
+
+  const update = (idx, raw) => {
+    if (raw !== "" && (Number(raw) < 1 || Number(raw) > 15)) return;
+    const n = [...holes];
+    n[idx] = raw === "" ? null : Number(raw);
+    updateGolfer(selected, n);
+  };
+
+  const stbl = computeStableford(holes, playerHcp);
+  const cat = getCategory(playerHcp);
+
+  const clearCard = () => {
+    if (!window.confirm(`¿Borrar tarjeta de ${selected}?`)) return;
+    updateGolfer(selected, Array(18).fill(null));
+  };
+
+  return (
+    <div style={S.section}>
+      <SectionHeader eyebrow="HOYO POR HOYO" title="Tarjetas"
+        subtitle="Pulsa cada hoyo para introducir los golpes. Los puntos del comunio se calculan sobre el total bruto." />
+
+      {/* Player chips */}
+      <div style={S.chips}>
+        {GOLFERS.map(g => {
+          const h = holeData[g] || [];
+          const f = filledCount(h);
+          const c = f === 18;
+          const t = sumHoles(h);
+          const active = selected === g;
+          return (
+            <button key={g} onClick={() => setSelected(g)}
+              style={{ ...S.chip, ...(active ? S.chipOn(g) : {}) }}>
+              <PlayerAvatar name={g} size={26} dimmed={!active} />
+              <div style={S.chipText}>
+                <div style={{ ...S.chipName, color: active ? PLAYER[g].ink : C.text }}>{g}</div>
+                <div style={S.chipMeta}>
+                  HCP {PLAYER[g].hcp} · {CAT_LABEL[getCategory(PLAYER[g].hcp)]} · {c ? `${t}` : f > 0 ? `${f}/18` : "—"}
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Hero card */}
+      <div style={{ ...S.hero, borderTop: `4px solid ${PLAYER[selected].color}` }}>
+        <div style={S.hero__top}>
+          <div>
+            <div style={S.hero__eyebrow}>JUGADOR · HCP {playerHcp} · {CAT_LABEL[cat]}</div>
+            <h2 style={{ ...S.hero__name, color: PLAYER[selected].ink }}>{selected}</h2>
+            <div style={S.hero__status}>
+              {complete ? "RONDA FINALIZADA"
+                : filled === 0 ? "AÚN NO HA SALIDO"
+                : `THRU ${filled} · ${18 - filled} HOYOS RESTANTES`}
+            </div>
+          </div>
+          <div style={S.hero__totalBox}>
+            <div style={S.hero__totalLbl}>{complete ? "BRUTO" : "PROYECTADO"}</div>
+            <div style={S.hero__totalRow}>
+              <Num value={proj ?? 0} style={S.hero__totalNum} />
+            </div>
+            {delta !== null && (
+              <div style={{ ...S.hero__delta, color: delta > 0 ? "#B91C1C" : delta < 0 ? "#15803D" : C.text }}>
+                {fmtPar(delta)} <span style={S.hero__deltaLbl}>vs par {PAR_TOTAL}</span>
+              </div>
+            )}
+            {netProj !== null && playerHcp > 0 && (
+              <div style={S.hero__net}>
+                <span style={S.hero__netLbl}>NET</span>
+                <span style={S.hero__netNum}>{netProj}</span>
+                <span style={{ ...S.hero__netDelta, color: netDelta > 0 ? "#B91C1C" : netDelta < 0 ? "#15803D" : C.text }}>
+                  {fmtPar(netDelta)}
+                </span>
+              </div>
+            )}
+            {stbl.total > 0 && (
+              <div style={S.hero__stbl}>
+                <span style={S.hero__stblLbl}>STBL</span>
+                <span style={S.hero__stblNum}>{stbl.total}</span>
+                <span style={S.hero__stblPts}>pts</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <PaceBar holes={holes} />
+      </div>
+
+      {/* Paper scorecard */}
+      <PaperScorecard holes={holes} update={update} front={front} back={back} total={total} player={selected} />
+
+      <div style={S.entryFooter}>
+        <button onClick={clearCard} style={S.clearBtn}>Borrar tarjeta</button>
+        <div style={S.entryFooterHint}>Los datos se guardan automáticamente</div>
+      </div>
+    </div>
+  );
+}
+
+function PaceBar({ holes }) {
+  const pts = [];
+  let acc = 0;
+  for (let i = 0; i < 18; i++) {
+    const v = holes[i];
+    if (v === null || v === undefined || v === "") break;
+    acc += Number(v) - PARS[i];
+    pts.push(acc);
+  }
+  const max = Math.max(2, ...pts.map(Math.abs), 1);
+  const W = 100, H = 32, n = pts.length;
+  return (
+    <div style={S.pace}>
+      <div style={S.paceLabel}>RITMO BRUTO vs PAR</div>
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={S.paceSvg}>
+        <line x1="0" y1={H / 2} x2={W} y2={H / 2} stroke={C.line} strokeWidth="0.4" strokeDasharray="1,1" />
+        {n > 0 && (
+          <>
+            <path d={`M 0 ${H / 2} ${pts.map((p, i) => `L ${(i + 1) / 18 * W} ${H / 2 - (p / max) * (H / 2 - 2)}`).join(" ")}`}
+              fill="none" stroke={C.green} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+            {pts.map((p, i) => (
+              <circle key={i} cx={(i + 1) / 18 * W} cy={H / 2 - (p / max) * (H / 2 - 2)} r="0.8" fill={C.green} />
+            ))}
+          </>
+        )}
+        {Array.from({ length: 18 }, (_, i) => (
+          <line key={i} x1={(i + 1) / 18 * W} y1={H - 1.5} x2={(i + 1) / 18 * W} y2={H} stroke={C.line} strokeWidth="0.3" />
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+function PaperScorecard({ holes, update, front, back, total, player }) {
+  const playerHcp = PLAYER[player].hcp;
+
+  // Net por hoyo
+  const netHoles = holes.map((v, i) => {
+    if (v === null || v === undefined || v === "") return null;
+    return Number(v) - strokesAtHole(playerHcp, i);
+  });
+  const netFront = netHoles.slice(0, 9).reduce((a, x) => a + (x ?? 0), 0);
+  const netBack = netHoles.slice(9, 18).reduce((a, x) => a + (x ?? 0), 0);
+  const netTotal = netFront + netBack;
+
+  // Stableford por hoyo
+  const stbl = computeStableford(holes, playerHcp);
+
+  return (
+    <div style={S.paper}>
+      <div style={S.paperGrain} />
+
+      <div style={S.paperHeader}>
+        <div>
+          <div style={S.paperHeaderTitle}>Scorecard</div>
+          <div style={S.paperHeaderSub}>18 hoyos · par {PAR_TOTAL} · HCP {playerHcp} · {CAT_LABEL[getCategory(playerHcp)]}</div>
+        </div>
+        <div style={S.paperHeaderMonogram}>GC</div>
+      </div>
+
+      <NineRow startIdx={0} startHole={1} holes={holes} netHoles={netHoles}
+        update={update} totalLabel="OUT" totalValue={front} netValue={netFront} stblValue={stbl.front}
+        parTotal={PAR_FRONT} playerHcp={playerHcp} stblHoles={stbl.pointsPerHole} />
+
+      <div style={S.paperDivider}>
+        <div style={S.paperDividerLine} />
+        <span style={S.paperDividerDot}>◆</span>
+        <div style={S.paperDividerLine} />
+      </div>
+
+      <NineRow startIdx={9} startHole={10} holes={holes} netHoles={netHoles}
+        update={update} totalLabel="IN" totalValue={back} netValue={netBack} stblValue={stbl.back}
+        parTotal={PAR_BACK} playerHcp={playerHcp} stblHoles={stbl.pointsPerHole} />
+
+      <div style={S.paperTotals}>
+        <PaperTotal label="OUT" par={PAR_FRONT} value={front} netValue={netFront} stblValue={stbl.front} hasHcp={playerHcp > 0} />
+        <PaperTotal label="IN" par={PAR_BACK} value={back} netValue={netBack} stblValue={stbl.back} hasHcp={playerHcp > 0} />
+        <PaperTotal label="TOTAL" par={PAR_TOTAL} value={total} netValue={netTotal} stblValue={stbl.total} hasHcp={playerHcp > 0} primary />
+      </div>
+
+      {playerHcp > 0 && (
+        <div style={S.paperLegend}>
+          <span style={S.paperLegendDot} /> hoyo donde recibe golpes de hcp
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NineRow({ startIdx, startHole, holes, netHoles, update, totalLabel, totalValue, netValue, stblValue, parTotal, playerHcp, stblHoles }) {
+  return (
+    <div style={S.scoreRow}>
+      <div style={S.scoreRow__head}>{startIdx === 0 ? "IDA" : "VUELTA"}</div>
+      <div style={S.scoreRow__scroll}>
+        <table style={S.gridTable}>
+          <thead>
+            <tr>
+              <td style={S.gridLabel}>HOYO</td>
+              {Array.from({ length: 9 }, (_, i) => (
+                <td key={i} style={S.gridHoleNum}>{startHole + i}</td>
+              ))}
+              <td style={S.gridSumLabel}>{totalLabel}</td>
+            </tr>
+            <tr>
+              <td style={S.gridLabel}>PAR</td>
+              {Array.from({ length: 9 }, (_, i) => (
+                <td key={i} style={S.gridPar}>{PARS[startIdx + i]}</td>
+              ))}
+              <td style={S.gridSumPar}>{parTotal}</td>
+            </tr>
+            <tr>
+              <td style={S.gridLabel}>HCP</td>
+              {Array.from({ length: 9 }, (_, i) => {
+                const idx = startIdx + i;
+                const strokes = strokesAtHole(playerHcp, idx);
+                return (
+                  <td key={i} style={S.gridHcp}>
+                    <span style={S.gridHcpNum}>{HCPS[idx]}</span>
+                    {strokes > 0 && (
+                      <span style={S.gridHcpDots}>
+                        {Array.from({ length: strokes }, (_, k) => <span key={k} style={S.gridHcpDot} />)}
+                      </span>
+                    )}
+                  </td>
+                );
+              })}
+              <td style={S.gridSumPar}>—</td>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style={S.gridLabel}>SCORE</td>
+              {Array.from({ length: 9 }, (_, i) => {
+                const idx = startIdx + i;
+                const v = holes[idx];
+                const filled = v !== null && v !== undefined && v !== "";
+                const cls = filled ? parClass(Number(v), PARS[idx]) : null;
+                const strokes = strokesAtHole(playerHcp, idx);
+                return (
+                  <td key={idx} style={{ ...S.gridScoreCell, ...(strokes > 0 ? S.gridScoreCellHcp : {}) }}>
+                    <div style={{ ...S.gridScoreWrap, ...(cls ? CLS_STYLES[cls] : {}) }}>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min={1}
+                        max={15}
+                        value={filled ? v : ""}
+                        onChange={e => update(idx, e.target.value)}
+                        style={S.gridScoreInput}
+                        placeholder="·"
+                      />
+                    </div>
+                  </td>
+                );
+              })}
+              <td style={S.gridSumScoreCell}>
+                <div style={S.gridSumScore}>{totalValue || "—"}</div>
+              </td>
+            </tr>
+            {playerHcp > 0 && (
+              <tr>
+                <td style={S.gridLabel}>NET</td>
+                {Array.from({ length: 9 }, (_, i) => {
+                  const idx = startIdx + i;
+                  const n = netHoles[idx];
+                  return (
+                    <td key={idx} style={S.gridNetCell}>
+                      {n !== null && n !== undefined ? n : "·"}
+                    </td>
+                  );
+                })}
+                <td style={S.gridSumNetCell}>{netValue || "—"}</td>
+              </tr>
+            )}
+            <tr>
+              <td style={S.gridLabel}>STBL</td>
+              {Array.from({ length: 9 }, (_, i) => {
+                const idx = startIdx + i;
+                const pts = stblHoles[idx];
+                if (pts === null) return <td key={idx} style={S.gridStblCell}>·</td>;
+                return (
+                  <td key={idx} style={{ ...S.gridStblCell, ...stblPtsStyle(pts) }}>
+                    {pts}
+                  </td>
+                );
+              })}
+              <td style={S.gridSumStblCell}>{stblValue || "—"}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function stblPtsStyle(pts) {
+  if (pts >= 4) return { color: "#92400E", fontWeight: 700 };
+  if (pts === 3) return { color: "#15803D", fontWeight: 700 };
+  if (pts === 2) return { color: "#0F2A1E", fontWeight: 500 };
+  if (pts === 1) return { color: "#B91C1C" };
+  return { color: "#9CA3AF" };
+}
+
+const CLS_STYLES = {
+  eagle:  { background: "#FDF6E3", color: "#92400E", boxShadow: "inset 0 0 0 2px #FBBF24, inset 0 0 0 4px #FDF6E3" },
+  birdie: { background: "#FDF6E3", color: "#15803D", boxShadow: "inset 0 0 0 2px #15803D" },
+  par:    { background: "transparent", color: C_TEXT() },
+  bogey:  { background: "#FDF6E3", color: "#B91C1C", boxShadow: "inset 0 0 0 2px #B91C1C", borderRadius: 0 },
+  double: { background: "#FEE2E2", color: "#7F1D1D", boxShadow: "inset 0 0 0 2px #7F1D1D, inset 0 0 0 4px #FEE2E2", borderRadius: 0 },
+};
+function C_TEXT() { return "#2A2A28"; } // forward ref to keep CLS_STYLES static
+
+function PaperTotal({ label, par, value, netValue, stblValue, hasHcp, primary }) {
+  const delta = value > 0 ? value - par : null;
+  return (
+    <div style={{ ...S.paperTotal, ...(primary ? S.paperTotalPrimary : {}) }}>
+      <div style={S.paperTotalLbl}>{label}</div>
+      <div style={S.paperTotalRow}>
+        <Num value={value} style={S.paperTotalNum} />
+        <span style={S.paperTotalPar}>par {par}</span>
+      </div>
+      {delta !== null && (
+        <div style={{ ...S.paperTotalDelta, color: primary ? C.gold : delta > 0 ? "#B91C1C" : delta < 0 ? "#15803D" : C.text }}>
+          {fmtPar(delta)}
+        </div>
+      )}
+      {hasHcp && netValue > 0 && (
+        <div style={S.paperTotalNet}>
+          NET <strong>{netValue}</strong> · {fmtPar(netValue - par)}
+        </div>
+      )}
+      {stblValue > 0 && (
+        <div style={S.paperTotalStbl}>
+          STBL <strong>{stblValue}</strong> pts
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  PREDICTIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+function Predictions({ liveTotals, scores, holeData }) {
+  // Para Apuestas, la diff se calcula sobre el TOTAL FINAL (tarjeta cerrada).
+  // Si la tarjeta no está cerrada, mostramos progreso pero sin diff.
+  const finalTotals = {};
+  GOLFERS.forEach(g => {
+    if (isComplete(holeData[g] || [])) finalTotals[g] = sumHoles(holeData[g]);
+  });
+
+  return (
+    <div style={S.section}>
+      <SectionHeader eyebrow="MERCADO" title="Apuestas"
+        subtitle="Una tarjeta por jugador con todas las apuestas. La proximidad cuenta solo cuando se cierra la ronda." />
+      {GOLFERS.map(g => (
+        <GolferPredictionCard key={g} golfer={g} finalTotals={finalTotals} liveTotals={liveTotals} scores={scores} holeData={holeData} />
+      ))}
+    </div>
+  );
+}
+
+function GolferPredictionCard({ golfer, finalTotals, liveTotals, scores, holeData }) {
+  const final = finalTotals[golfer];
+  const live = liveTotals[golfer];
+  const hasFinal = final !== undefined;
+  const filled = filledCount(holeData[golfer] || []);
+  const complete = filled === 18;
+  const preds = PREDICTORS.map(p => ({
+    p, pred: PREDICTIONS[p][golfer],
+    diff: hasFinal ? Math.abs(PREDICTIONS[p][golfer] - final) : null,
+    won: hasFinal && scores[p].details[golfer]?.won,
+  })).sort((a, b) => (a.diff ?? 999) - (b.diff ?? 999) || a.pred - b.pred);
+
+  return (
+    <div style={{ ...S.gpc, borderLeft: `3px solid ${PLAYER[golfer].color}` }}>
+      <div style={S.gpc__head}>
+        <div style={S.gpc__nameWrap}>
+          <PlayerAvatar name={golfer} size={36} />
+          <div>
+            <div style={S.gpc__name}>{golfer}</div>
+            <div style={S.gpc__sub}>
+              HCP {PLAYER[golfer].hcp} · {complete ? `FINAL · ${final} (${fmtPar(final - PAR_TOTAL)})`
+                : filled === 0 ? "Sin salida"
+                : `EN JUEGO · thru ${filled}/18 · llevando ${sumHoles(holeData[golfer])} golpes`}
+            </div>
+          </div>
+        </div>
+        {complete && <div style={S.gpc__finalBadge}>FINAL</div>}
+        {!complete && filled > 0 && <div style={S.gpc__liveBadge}><span style={S.livePulse} />EN JUEGO</div>}
+      </div>
+
+      <div style={S.gpc__list}>
+        {preds.map((p, i) => (
+          <div key={p.p} style={{ ...S.bet, ...(p.won ? S.betWon : {}) }}>
+            <div style={S.bet__rank}>{hasFinal ? i + 1 : "—"}</div>
+            <PlayerAvatar name={p.p} size={28} />
+            <div style={S.bet__name}>{p.p}</div>
+            <div style={S.bet__pred}>{p.pred}</div>
+            {hasFinal && (
+              <div style={{ ...S.bet__diff, ...(p.won ? S.bet__diffWon : {}) }}>
+                {p.diff === 0 ? "✓" : `±${p.diff}`}
+              </div>
+            )}
+            {p.won && <div style={S.bet__crown}>★</div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── PLAYER AVATAR ────────────────────────────────────────────────────────────
+function PlayerAvatar({ name, size = 32, dimmed }) {
+  const p = PLAYER[name];
+  if (!p) return null;
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: "50%",
+      background: dimmed ? `${p.color}1F` : p.color,
+      color: dimmed ? p.ink : "#fff",
+      display: "inline-flex", alignItems: "center", justifyContent: "center",
+      fontSize: size * 0.36, fontWeight: 600, letterSpacing: "0.02em",
+      fontFamily: "'Fraunces', serif", flexShrink: 0,
+      transition: "all 0.2s ease",
+    }}>
+      {p.short}
+    </div>
+  );
+}
+
+// ─── GLOBAL STYLES (fonts + animations) ───────────────────────────────────────
+function GlobalStyles() {
+  return (
+    <style>{`
+      @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..600&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+      @keyframes pulseDot {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.4); opacity: 0.55; }
+      }
+      @keyframes slideUp {
+        from { opacity: 0; transform: translateY(14px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      input[type=number]::-webkit-outer-spin-button,
+      input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+      input[type=number] { -moz-appearance: textfield; }
+      * { box-sizing: border-box; }
+      body { margin: 0; }
+    `}</style>
+  );
+}
+
+// ─── COLORS ───────────────────────────────────────────────────────────────────
+const C = {
+  paper:     "#F5EFDF",
+  paperDark: "#EBE3CD",
+  ink:       "#1B1B1B",
+  green:     "#0F2A1E",
+  greenSoft: "#1F4434",
+  gold:      "#B8924A",
+  goldSoft:  "#D4B97A",
+  text:      "#2A2A28",
+  muted:     "#736D5C",
+  line:      "#C9BFA6",
+  card:      "#FBF7EA",
+  red:       "#B91C1C",
+};
+
+// ─── STYLES ───────────────────────────────────────────────────────────────────
+const FONT_DISPLAY = "'Fraunces', Georgia, serif";
+const FONT_MONO = "'JetBrains Mono', ui-monospace, monospace";
+
+const S = {
+  root: {
+    minHeight: "100vh", color: C.text,
+    fontFamily: FONT_DISPLAY,
+    background: `
+      radial-gradient(ellipse 80% 60% at 50% 0%, rgba(184,146,74,0.08) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 100% 100%, rgba(15,42,30,0.04) 0%, transparent 60%),
+      ${C.paper}
+    `,
+    backgroundAttachment: "fixed",
+  },
+
+  header: { padding: "28px 20px 0", maxWidth: 1100, margin: "0 auto" },
+  headerInner: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 24, flexWrap: "wrap" },
+  brand: { display: "flex", alignItems: "center", gap: 14 },
+  monogram: { display: "flex", alignItems: "center" },
+  brandTitle: {
+    fontSize: 30, fontWeight: 400, color: C.green, lineHeight: 1,
+    fontStyle: "italic", letterSpacing: "-0.02em",
+    fontVariationSettings: "'opsz' 144",
+  },
+  brandSub: { fontSize: 9, color: C.muted, letterSpacing: "0.32em", marginTop: 6, fontFamily: FONT_MONO, fontWeight: 500 },
+  headerStats: { display: "flex", alignItems: "center", gap: 18 },
+  statBlock: { textAlign: "center", minWidth: 56 },
+  statNum: { fontSize: 32, fontFamily: FONT_MONO, fontWeight: 500, color: C.green, lineHeight: 1, fontVariantNumeric: "tabular-nums" },
+  statLabel: { fontSize: 8, color: C.muted, letterSpacing: "0.28em", fontFamily: FONT_MONO, fontWeight: 500, marginTop: 6 },
+  statSep: { width: 1, height: 32, background: C.line },
+  headerRule: { display: "flex", alignItems: "center", gap: 12, margin: "26px 0 0" },
+  headerRuleLine: { flex: 1, height: 1, background: C.line },
+  headerRuleStar: { color: C.gold, fontSize: 10, letterSpacing: "0.5em" },
+
+  nav: {
+    maxWidth: 1100, margin: "20px auto 0", padding: "0 20px",
+    display: "flex", gap: 4, flexWrap: "wrap",
+    borderBottom: `1px solid ${C.line}`,
+  },
+  navBtn: {
+    padding: "12px 14px", background: "none", border: "none",
+    color: C.muted, cursor: "pointer", fontFamily: FONT_DISPLAY,
+    fontSize: 15, fontWeight: 400, fontStyle: "italic",
+    letterSpacing: "0.01em", borderBottom: "2px solid transparent",
+    marginBottom: -1, transition: "color 0.2s",
+  },
+  navBtnOn: { color: C.green, borderBottom: `2px solid ${C.gold}` },
+
+  toast: {
+    position: "fixed", top: 14, right: 14, zIndex: 100,
+    background: C.green, color: C.paper,
+    padding: "8px 14px", borderRadius: 999,
+    fontSize: 11, fontFamily: FONT_MONO, letterSpacing: "0.1em",
+    display: "flex", alignItems: "center", gap: 8,
+    boxShadow: "0 6px 20px rgba(15,42,30,0.18)",
+    animation: "slideUp 0.3s ease",
+  },
+  toastOk: { background: "#15803D" },
+  toastDot: { width: 6, height: 6, borderRadius: "50%", background: C.gold, animation: "pulseDot 1.4s ease-in-out infinite" },
+
+  main: { maxWidth: 1100, margin: "0 auto", padding: "32px 20px 16px" },
+  loading: { textAlign: "center", padding: 80, color: C.muted, fontSize: 32, letterSpacing: "0.5em" },
+  section: { display: "flex", flexDirection: "column", gap: 28 },
+
+  sectionHeader: { textAlign: "left" },
+  sectionEyebrow: {
+    display: "inline-flex", alignItems: "center", gap: 8,
+    fontSize: 10, color: C.muted, letterSpacing: "0.32em",
+    fontFamily: FONT_MONO, fontWeight: 500, marginBottom: 8,
+  },
+  sectionTitle: {
+    fontSize: 44, fontWeight: 300, color: C.green,
+    margin: 0, lineHeight: 1, letterSpacing: "-0.025em",
+    fontStyle: "italic", fontVariationSettings: "'opsz' 144",
+  },
+  sectionSub: { fontSize: 14, color: C.muted, marginTop: 10, maxWidth: 580, lineHeight: 1.5 },
+  livePulse: { width: 7, height: 7, borderRadius: "50%", background: C.red, animation: "pulseDot 1.4s ease-in-out infinite", display: "inline-block" },
+
+  // ─ Porra status strip ───────────────────────
+  porraStrip: {
+    display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: 16,
+    background: C.card, border: `1px solid ${C.line}`, borderRadius: 4,
+    padding: "16px 18px", alignItems: "center",
+    boxShadow: "0 2px 0 rgba(15,42,30,0.04)",
+  },
+  porraStripBlock: { textAlign: "center" },
+  porraStripNum: {
+    fontSize: 38, fontFamily: FONT_MONO, fontWeight: 500,
+    color: C.green, lineHeight: 1, fontVariantNumeric: "tabular-nums",
+  },
+  porraStripLbl: {
+    fontSize: 9, color: C.muted, letterSpacing: "0.28em",
+    fontFamily: FONT_MONO, marginTop: 6,
+  },
+  porraStripGolfers: {
+    display: "flex", justifyContent: "center", flexWrap: "wrap",
+    gap: 4, marginTop: 8,
+  },
+  porraStripChip: {
+    background: "rgba(15,42,30,0.08)", color: C.green,
+    fontSize: 10, fontFamily: FONT_MONO, letterSpacing: "0.06em",
+    padding: "2px 8px", borderRadius: 999,
+  },
+  porraStripChipPending: {
+    background: "rgba(184,146,74,0.12)", color: C.gold,
+    border: "1px dashed rgba(184,146,74,0.4)",
+  },
+  porraStripSep: { width: 1, height: 60, background: C.line },
+
+  // ─ Categorías Stableford ────────────────────
+  cats: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+    gap: 14,
+  },
+  cat: {
+    background: C.card, border: `1px solid ${C.line}`,
+    borderRadius: 4, padding: "16px 16px 8px",
+    boxShadow: "0 2px 0 rgba(15,42,30,0.04)",
+  },
+  cat__head: {
+    display: "flex", alignItems: "baseline", justifyContent: "space-between",
+    paddingBottom: 10, marginBottom: 8,
+    borderBottom: `1px solid ${C.line}`,
+  },
+  cat__title: {
+    fontSize: 14, color: C.green, fontFamily: FONT_MONO,
+    fontWeight: 700, letterSpacing: "0.2em",
+  },
+  cat__range: {
+    fontSize: 9, color: C.muted, fontFamily: FONT_MONO,
+    letterSpacing: "0.2em",
+  },
+  cat__list: { display: "flex", flexDirection: "column" },
+  cat__empty: { fontSize: 12, color: C.muted, fontStyle: "italic", padding: "10px 0" },
+
+  catRow: {
+    display: "grid", gridTemplateColumns: "auto auto 1fr auto",
+    gap: 12, alignItems: "center",
+    padding: "10px 0", borderBottom: `1px dashed ${C.line}`,
+  },
+  catRowLeader: {
+    background: "linear-gradient(90deg, rgba(184,146,74,0.10) 0%, transparent 90%)",
+    margin: "0 -10px", padding: "10px",
+    borderBottom: `1px dashed ${C.line}`,
+  },
+  catRow__rank: {
+    fontSize: 18, fontFamily: FONT_MONO, fontWeight: 500,
+    color: C.gold, width: 18, textAlign: "center",
+  },
+  catRow__name: {},
+  catRow__nameMain: {
+    fontSize: 17, fontStyle: "italic", color: C.green,
+    fontWeight: 400, lineHeight: 1.1,
+  },
+  catRow__nameSub: { fontSize: 10, color: C.muted, fontFamily: FONT_MONO, letterSpacing: "0.1em", marginTop: 2 },
+  catRow__pts: {
+    display: "flex", alignItems: "baseline", gap: 4,
+  },
+  catRow__ptsNum: {
+    fontSize: 24, fontFamily: FONT_MONO, fontWeight: 500,
+    color: C.green, fontVariantNumeric: "tabular-nums", lineHeight: 1,
+  },
+  catRow__ptsLbl: { fontSize: 10, color: C.muted, fontFamily: FONT_MONO, letterSpacing: "0.15em" },
+
+  podium: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginTop: 4 },
+  podium__card: {
+    background: C.card, borderRadius: 4, padding: "26px 18px 18px",
+    position: "relative", textAlign: "center",
+    border: `1px solid ${C.line}`,
+    boxShadow: "0 2px 0 rgba(15,42,30,0.04)",
+  },
+  podium__ribbon: {
+    position: "absolute", top: -10, left: "50%", transform: "translateX(-50%)",
+    padding: "4px 14px", fontSize: 11, fontFamily: FONT_MONO, fontWeight: 700, letterSpacing: "0.2em",
+  },
+  podium__name: { fontSize: 22, color: C.green, marginTop: 12, fontStyle: "italic", fontWeight: 400, letterSpacing: "-0.01em" },
+  podium__hcp: { fontSize: 9, color: C.muted, fontFamily: FONT_MONO, letterSpacing: "0.25em", marginTop: 4 },
+  podium__pts: { margin: "10px 0 8px", display: "flex", alignItems: "baseline", justifyContent: "center", gap: 6 },
+  podium__ptsNum: { fontSize: 44, fontFamily: FONT_MONO, fontWeight: 500, color: C.green, fontVariantNumeric: "tabular-nums", lineHeight: 1 },
+  podium__ptsLbl: { fontSize: 11, color: C.muted, letterSpacing: "0.2em", fontFamily: FONT_MONO },
+  podium__wins: { fontSize: 11, color: C.muted, fontFamily: FONT_MONO, letterSpacing: "0.04em" },
+  podium__win: { marginRight: 4 },
+  podium__noWins: { fontStyle: "italic", color: C.muted, fontFamily: FONT_DISPLAY },
+
+  boardList: { display: "flex", flexDirection: "column", gap: 1, background: C.line, border: `1px solid ${C.line}` },
+  row: {
+    background: C.card, padding: "14px 16px",
+    display: "grid",
+    gridTemplateColumns: "auto auto 1fr auto auto",
+    gap: 14, alignItems: "center", cursor: "pointer",
+    position: "relative", transition: "background 0.15s",
+  },
+  rowLeader: { background: `linear-gradient(90deg, rgba(184,146,74,0.08) 0%, ${C.card} 50%)` },
+  row__rank: { display: "flex", alignItems: "baseline", gap: 4, minWidth: 36 },
+  row__rankNum: { fontSize: 28, fontFamily: FONT_MONO, fontWeight: 500, color: C.green, lineHeight: 1, fontVariantNumeric: "tabular-nums" },
+  row__rankFlag: { fontSize: 14 },
+  row__name: {},
+  row__nameMain: { fontSize: 19, fontStyle: "italic", color: C.green, fontWeight: 400, lineHeight: 1.1 },
+  row__nameSub: { fontSize: 11, color: C.muted, fontFamily: FONT_MONO, marginTop: 3, letterSpacing: "0.05em" },
+  row__pts: { textAlign: "right" },
+  row__ptsNum: { fontSize: 28, fontFamily: FONT_MONO, fontWeight: 500, color: C.green, fontVariantNumeric: "tabular-nums", display: "inline-block" },
+  row__ptsLbl: { fontSize: 9, color: C.muted, fontFamily: FONT_MONO, letterSpacing: "0.2em", marginLeft: 6 },
+  row__chev: { color: C.muted, fontSize: 22, transition: "transform 0.2s", lineHeight: 1 },
+  row__detail: { gridColumn: "1 / -1", marginTop: 10, paddingTop: 12, borderTop: `1px dashed ${C.line}`, animation: "fadeIn 0.2s" },
+  row__detailGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 8 },
+  miniPick: { position: "relative", padding: "10px 12px", borderRadius: 3, border: `1px solid ${C.line}`, background: C.paper },
+  miniPickWon: { background: "#FDF6E3", border: `1px solid ${C.gold}`, boxShadow: "0 0 0 3px rgba(184,146,74,0.1)" },
+  miniPick__head: { display: "flex", alignItems: "center", gap: 6, marginBottom: 4 },
+  miniPick__name: { fontSize: 12, color: C.text, fontFamily: FONT_MONO, letterSpacing: "0.04em" },
+  miniPick__pred: { display: "flex", alignItems: "baseline", gap: 6 },
+  miniPick__predNum: { fontSize: 22, fontFamily: FONT_MONO, fontWeight: 500, color: C.green, fontVariantNumeric: "tabular-nums" },
+  miniPick__predLbl: { fontSize: 9, color: C.muted, fontFamily: FONT_MONO, letterSpacing: "0.15em" },
+  miniPick__diff: { fontSize: 10, color: C.muted, fontFamily: FONT_MONO, marginTop: 2, letterSpacing: "0.05em" },
+  miniPick__pending: { fontSize: 10, color: C.muted, fontFamily: FONT_DISPLAY, fontStyle: "italic", marginTop: 2 },
+  miniPick__crown: { position: "absolute", top: 4, right: 6, color: C.gold, fontSize: 14, lineHeight: 1 },
+
+  course: { marginTop: 8 },
+  course__title: { fontSize: 10, color: C.muted, letterSpacing: "0.32em", fontFamily: FONT_MONO, marginBottom: 12 },
+  course__grid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 1, background: C.line, border: `1px solid ${C.line}` },
+  course__card: { background: C.card, padding: "12px 14px" },
+  course__cardHead: { display: "flex", alignItems: "center", gap: 8, marginBottom: 8 },
+  course__cardName: { fontSize: 13, color: C.text, fontFamily: FONT_MONO, letterSpacing: "0.04em" },
+  course__cardHcp: { fontSize: 9, color: C.muted, fontFamily: FONT_MONO, letterSpacing: "0.18em", marginTop: 1 },
+  course__cardScore: { display: "flex", alignItems: "baseline", gap: 6 },
+  course__cardScoreNum: { fontSize: 26, fontFamily: FONT_MONO, fontWeight: 500, color: C.green, fontVariantNumeric: "tabular-nums", lineHeight: 1 },
+  course__cardEmpty: { fontSize: 26, color: C.muted, fontFamily: FONT_MONO },
+  course__cardDelta: { fontSize: 12, fontFamily: FONT_MONO, fontWeight: 500 },
+  course__cardNet: { fontSize: 10, color: C.muted, fontFamily: FONT_MONO, marginTop: 4, letterSpacing: "0.06em" },
+  course__cardStatus: { fontSize: 9, color: C.muted, marginTop: 4, fontFamily: FONT_MONO, letterSpacing: "0.2em" },
+
+  footer: { maxWidth: 1100, margin: "20px auto 0", padding: "20px" },
+  footerRule: { height: 1, background: C.line, marginBottom: 12 },
+  footerText: { fontSize: 10, color: C.muted, letterSpacing: "0.32em", fontFamily: FONT_MONO, textAlign: "center" },
+
+  chips: { display: "flex", flexWrap: "wrap", gap: 8 },
+  chip: {
+    display: "inline-flex", alignItems: "center", gap: 8,
+    background: C.card, border: `1px solid ${C.line}`,
+    padding: "8px 12px 8px 8px", borderRadius: 999,
+    fontFamily: FONT_DISPLAY, cursor: "pointer", transition: "all 0.18s",
+  },
+  chipOn: (g) => ({
+    background: `${PLAYER[g].color}10`,
+    border: `1px solid ${PLAYER[g].color}55`,
+    boxShadow: `0 2px 0 ${PLAYER[g].color}1A`,
+  }),
+  chipText: { textAlign: "left", lineHeight: 1.1 },
+  chipName: { fontSize: 14, fontStyle: "italic" },
+  chipMeta: { fontSize: 10, color: C.muted, fontFamily: FONT_MONO, letterSpacing: "0.05em", marginTop: 2 },
+
+  hero: {
+    background: C.card, padding: "20px 22px 18px",
+    border: `1px solid ${C.line}`, borderRadius: 4,
+    boxShadow: "0 2px 0 rgba(15,42,30,0.04)",
+  },
+  hero__top: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 16 },
+  hero__eyebrow: { fontSize: 10, color: C.muted, letterSpacing: "0.32em", fontFamily: FONT_MONO, marginBottom: 4 },
+  hero__name: { fontSize: 42, fontStyle: "italic", fontWeight: 300, margin: "0 0 6px 0", letterSpacing: "-0.02em", lineHeight: 1 },
+  hero__status: { fontSize: 10, color: C.muted, fontFamily: FONT_MONO, letterSpacing: "0.18em" },
+  hero__totalBox: { textAlign: "right" },
+  hero__totalLbl: { fontSize: 9, color: C.muted, letterSpacing: "0.32em", fontFamily: FONT_MONO },
+  hero__totalRow: { marginTop: 4 },
+  hero__totalNum: { fontSize: 56, fontFamily: FONT_MONO, fontWeight: 500, color: C.green, lineHeight: 1, fontVariantNumeric: "tabular-nums" },
+  hero__delta: { fontSize: 16, fontFamily: FONT_MONO, fontWeight: 500, marginTop: 2 },
+  hero__deltaLbl: { fontSize: 10, color: C.muted, marginLeft: 4, letterSpacing: "0.1em" },
+  hero__net: {
+    marginTop: 8, paddingTop: 8, borderTop: `1px dashed ${C.line}`,
+    display: "flex", alignItems: "baseline", gap: 6, justifyContent: "flex-end",
+  },
+  hero__netLbl: { fontSize: 9, color: C.muted, fontFamily: FONT_MONO, letterSpacing: "0.32em" },
+  hero__netNum: { fontSize: 22, fontFamily: FONT_MONO, fontWeight: 500, color: C.green, fontVariantNumeric: "tabular-nums" },
+  hero__netDelta: { fontSize: 12, fontFamily: FONT_MONO, fontWeight: 500 },
+  hero__stbl: {
+    marginTop: 4, display: "flex", alignItems: "baseline",
+    gap: 6, justifyContent: "flex-end",
+  },
+  hero__stblLbl: { fontSize: 9, color: C.muted, fontFamily: FONT_MONO, letterSpacing: "0.32em" },
+  hero__stblNum: {
+    fontSize: 24, fontFamily: FONT_MONO, fontWeight: 700,
+    color: C.gold, fontVariantNumeric: "tabular-nums",
+  },
+  hero__stblPts: { fontSize: 10, color: C.muted, fontFamily: FONT_MONO, letterSpacing: "0.15em" },
+
+  pace: { marginTop: 20 },
+  paceLabel: { fontSize: 9, color: C.muted, letterSpacing: "0.32em", fontFamily: FONT_MONO, marginBottom: 4 },
+  paceSvg: { width: "100%", height: 36, display: "block" },
+
+  paper: {
+    position: "relative", background: C.card, padding: "24px 18px 18px",
+    border: `1px solid ${C.line}`, borderRadius: 4,
+    boxShadow: "0 2px 0 rgba(15,42,30,0.04), 0 16px 40px -20px rgba(15,42,30,0.18)",
+    overflow: "hidden",
+  },
+  paperGrain: {
+    position: "absolute", inset: 0, pointerEvents: "none", opacity: 0.4,
+    backgroundImage: `radial-gradient(circle at 30% 20%, rgba(184,146,74,0.06) 0%, transparent 50%),
+                      radial-gradient(circle at 70% 80%, rgba(15,42,30,0.04) 0%, transparent 50%)`,
+  },
+  paperHeader: {
+    position: "relative", display: "flex", justifyContent: "space-between",
+    alignItems: "flex-start", paddingBottom: 14, marginBottom: 8,
+    borderBottom: `1px solid ${C.line}`,
+  },
+  paperHeaderTitle: { fontSize: 22, fontStyle: "italic", color: C.green, lineHeight: 1, fontWeight: 400 },
+  paperHeaderSub: { fontSize: 10, color: C.muted, fontFamily: FONT_MONO, letterSpacing: "0.22em", marginTop: 4 },
+  paperHeaderMonogram: {
+    fontSize: 12, color: C.gold, fontFamily: FONT_MONO,
+    letterSpacing: "0.5em", border: `1px solid ${C.gold}`,
+    padding: "6px 12px", borderRadius: 999, fontWeight: 500, alignSelf: "center",
+  },
+
+  paperDivider: { display: "flex", alignItems: "center", gap: 12, margin: "8px 0" },
+  paperDividerLine: { flex: 1, height: 1, background: C.line },
+  paperDividerDot: { color: C.gold, fontSize: 10 },
+
+  paperLegend: {
+    position: "relative", display: "flex", alignItems: "center", gap: 6,
+    marginTop: 12, paddingTop: 10, borderTop: `1px dashed ${C.line}`,
+    fontSize: 10, color: C.muted, fontFamily: FONT_DISPLAY, fontStyle: "italic",
+  },
+  paperLegendDot: { width: 5, height: 5, borderRadius: "50%", background: C.gold },
+
+  paperTotals: {
+    position: "relative",
+    display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 1,
+    background: C.line, marginTop: 14, border: `1px solid ${C.line}`,
+  },
+  paperTotal: { background: C.card, padding: "12px 14px" },
+  paperTotalPrimary: { background: C.green, color: C.paper },
+  paperTotalLbl: { fontSize: 9, letterSpacing: "0.32em", fontFamily: FONT_MONO, color: "inherit", opacity: 0.7 },
+  paperTotalRow: { display: "flex", alignItems: "baseline", gap: 6, marginTop: 4 },
+  paperTotalNum: { fontSize: 28, fontFamily: FONT_MONO, fontWeight: 500, color: "inherit", fontVariantNumeric: "tabular-nums", lineHeight: 1 },
+  paperTotalPar: { fontSize: 10, color: "inherit", opacity: 0.6, fontFamily: FONT_MONO, letterSpacing: "0.1em" },
+  paperTotalDelta: { fontSize: 12, fontFamily: FONT_MONO, fontWeight: 500, marginTop: 2 },
+  paperTotalNet: { fontSize: 10, opacity: 0.7, fontFamily: FONT_MONO, marginTop: 4, letterSpacing: "0.06em" },
+  paperTotalStbl: { fontSize: 10, fontFamily: FONT_MONO, marginTop: 2, letterSpacing: "0.06em", color: "inherit", opacity: 0.85, fontWeight: 700 },
+
+  scoreRow: { position: "relative" },
+  scoreRow__head: { fontSize: 9, color: C.muted, letterSpacing: "0.32em", fontFamily: FONT_MONO, marginBottom: 6 },
+  scoreRow__scroll: { overflowX: "auto", marginRight: -18, paddingRight: 18 },
+  gridTable: { width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: 540, fontFamily: FONT_MONO },
+  gridLabel: {
+    fontSize: 9, color: C.muted, letterSpacing: "0.22em",
+    padding: "6px 10px 6px 0", textAlign: "left",
+    fontFamily: FONT_MONO, whiteSpace: "nowrap", width: 56,
+  },
+  gridHoleNum: {
+    fontSize: 12, color: C.green, fontWeight: 500,
+    textAlign: "center", padding: "8px 0", borderBottom: `1px solid ${C.line}`,
+    background: "rgba(184,146,74,0.05)", fontVariantNumeric: "tabular-nums",
+  },
+  gridPar: {
+    fontSize: 11, color: C.muted, fontWeight: 400,
+    textAlign: "center", padding: "6px 0", borderBottom: `1px solid ${C.line}`,
+    fontVariantNumeric: "tabular-nums",
+  },
+  gridHcp: {
+    textAlign: "center", padding: "4px 0", borderBottom: `1px solid ${C.line}`,
+    position: "relative",
+  },
+  gridHcpNum: { fontSize: 9, color: C.muted, letterSpacing: "0.04em", display: "block", fontFamily: FONT_MONO },
+  gridHcpDots: { display: "inline-flex", gap: 2, justifyContent: "center", marginTop: 2 },
+  gridHcpDot: { width: 4, height: 4, borderRadius: "50%", background: C.gold, display: "inline-block" },
+  gridSumLabel: {
+    fontSize: 11, color: C.gold, fontWeight: 500, letterSpacing: "0.2em",
+    textAlign: "center", padding: "8px 0", borderBottom: `1px solid ${C.line}`,
+    background: "rgba(15,42,30,0.04)",
+  },
+  gridSumPar: {
+    fontSize: 11, color: C.muted, fontWeight: 500,
+    textAlign: "center", padding: "6px 0", borderBottom: `1px solid ${C.line}`,
+    background: "rgba(15,42,30,0.04)", fontVariantNumeric: "tabular-nums",
+  },
+  gridScoreCell: { padding: "6px 2px", textAlign: "center" },
+  gridScoreCellHcp: { background: "rgba(184,146,74,0.04)" },
+  gridScoreWrap: {
+    width: 38, height: 38, borderRadius: "50%",
+    margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center",
+    transition: "all 0.2s ease",
+  },
+  gridScoreInput: {
+    width: "100%", height: "100%", border: "none", outline: "none",
+    padding: 0, background: "transparent",
+    textAlign: "center", fontSize: 18, fontFamily: FONT_MONO, fontWeight: 500,
+    color: "inherit", fontVariantNumeric: "tabular-nums",
+  },
+  gridSumScoreCell: { padding: "6px 0", textAlign: "center", background: "rgba(15,42,30,0.04)" },
+  gridSumScore: { fontSize: 18, fontFamily: FONT_MONO, fontWeight: 500, color: C.green, fontVariantNumeric: "tabular-nums" },
+  gridNetCell: {
+    fontSize: 12, fontFamily: FONT_MONO, fontWeight: 400,
+    textAlign: "center", padding: "6px 0", color: C.muted,
+    fontVariantNumeric: "tabular-nums", borderTop: `1px dashed ${C.line}`,
+  },
+  gridSumNetCell: {
+    fontSize: 13, fontFamily: FONT_MONO, fontWeight: 500,
+    textAlign: "center", padding: "6px 0", color: C.green,
+    fontVariantNumeric: "tabular-nums", borderTop: `1px dashed ${C.line}`,
+    background: "rgba(15,42,30,0.04)",
+  },
+  gridStblCell: {
+    fontSize: 12, fontFamily: FONT_MONO,
+    textAlign: "center", padding: "6px 0",
+    fontVariantNumeric: "tabular-nums",
+    borderTop: `1px dashed ${C.line}`,
+    background: "rgba(184,146,74,0.04)",
+  },
+  gridSumStblCell: {
+    fontSize: 14, fontFamily: FONT_MONO, fontWeight: 700,
+    textAlign: "center", padding: "6px 0", color: C.gold,
+    fontVariantNumeric: "tabular-nums", borderTop: `1px dashed ${C.line}`,
+    background: "rgba(15,42,30,0.04)",
+  },
+
+  entryFooter: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", flexWrap: "wrap", gap: 10 },
+  entryFooterHint: { fontSize: 10, color: C.muted, fontStyle: "italic", fontFamily: FONT_DISPLAY },
+  clearBtn: {
+    background: "transparent", color: C.muted, border: `1px solid ${C.line}`,
+    padding: "8px 14px", borderRadius: 999, cursor: "pointer",
+    fontFamily: FONT_DISPLAY, fontStyle: "italic", fontSize: 13,
+  },
+
+  gpc: {
+    background: C.card, border: `1px solid ${C.line}`,
+    borderLeft: `3px solid ${C.green}`,
+    padding: "18px 20px", borderRadius: 4,
+    boxShadow: "0 2px 0 rgba(15,42,30,0.04)",
+  },
+  gpc__head: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, gap: 10, flexWrap: "wrap" },
+  gpc__nameWrap: { display: "flex", alignItems: "center", gap: 12 },
+  gpc__name: { fontSize: 26, fontStyle: "italic", color: C.green, fontWeight: 400, lineHeight: 1, letterSpacing: "-0.01em" },
+  gpc__sub: { fontSize: 10, color: C.muted, fontFamily: FONT_MONO, letterSpacing: "0.15em", marginTop: 4 },
+  gpc__finalBadge: {
+    background: C.green, color: C.paper, padding: "4px 12px",
+    fontSize: 10, fontFamily: FONT_MONO, letterSpacing: "0.25em", borderRadius: 999,
+  },
+  gpc__liveBadge: {
+    display: "inline-flex", alignItems: "center", gap: 6,
+    background: "rgba(185,28,28,0.08)", color: C.red,
+    padding: "4px 12px", fontSize: 10, fontFamily: FONT_MONO,
+    letterSpacing: "0.25em", borderRadius: 999,
+    border: `1px solid rgba(185,28,28,0.25)`,
+  },
+  gpc__list: { display: "flex", flexDirection: "column", gap: 1, background: C.line },
+
+  bet: {
+    background: C.paper, padding: "10px 12px",
+    display: "grid",
+    gridTemplateColumns: "auto auto 1fr auto auto",
+    gap: 12, alignItems: "center",
+    position: "relative",
+  },
+  betWon: { background: "linear-gradient(90deg, rgba(184,146,74,0.12), rgba(184,146,74,0.04))" },
+  bet__rank: { fontSize: 18, fontFamily: FONT_MONO, fontWeight: 500, color: C.muted, width: 22, textAlign: "center" },
+  bet__name: { fontSize: 15, color: C.text, fontStyle: "italic" },
+  bet__pred: { fontSize: 22, fontFamily: FONT_MONO, fontWeight: 500, color: C.green, fontVariantNumeric: "tabular-nums" },
+  bet__diff: { fontSize: 11, color: C.muted, fontFamily: FONT_MONO, letterSpacing: "0.05em", minWidth: 36, textAlign: "right" },
+  bet__diffWon: { color: C.gold, fontWeight: 700 },
+  bet__crown: { position: "absolute", top: 4, right: 8, color: C.gold, fontSize: 13 },
+};
