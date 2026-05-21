@@ -1,0 +1,2696 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>HIT HUNTERS — Caza tu Hit · Pokémon TCG & One Piece Card Game</title>
+<meta name="description" content="Sobres premium de Pokémon TCG y One Piece Card Game. Pulls legendarios, directos en vivo, la experiencia definitiva para coleccionistas. Caza tu hit." />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Archivo:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+
+<style>
+/* ============================================================
+   HIT HUNTERS — TOKENS
+   ============================================================ */
+:root{
+  --bg:           #050507;
+  --bg-soft:      #0a0a12;
+  --bg-card:      rgba(18, 14, 28, 0.55);
+  --line:         rgba(200, 107, 255, 0.14);
+  --line-strong:  rgba(200, 107, 255, 0.32);
+  --purple:       #A020F0;
+  --violet:       #C86BFF;
+  --violet-soft:  #8b3df0;
+  --gold:         #F6D77A;
+  --gold-deep:    #d4a83a;
+  --white:        #F4F4F4;
+  --muted:        rgba(244,244,244,0.62);
+  --dim:          rgba(244,244,244,0.38);
+
+  --font-display: 'Archivo', system-ui, sans-serif;
+  --font-body:    'Space Grotesk', system-ui, sans-serif;
+  --font-mono:    'JetBrains Mono', monospace;
+
+  --shadow-glow:  0 0 60px rgba(160,32,240,0.35), 0 0 120px rgba(160,32,240,0.18);
+  --shadow-gold:  0 0 50px rgba(246,215,122,0.28);
+
+  --easing-snap:  cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+*{ margin:0; padding:0; box-sizing:border-box; }
+
+html{ scroll-behavior:auto; }
+
+html, body{
+  background: var(--bg);
+  color: var(--white);
+  font-family: var(--font-body);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body{
+  min-height: 100vh;
+  background:
+    radial-gradient(1200px 700px at 15% -10%, rgba(160,32,240,0.20), transparent 60%),
+    radial-gradient(900px 600px at 90% 20%, rgba(200,107,255,0.12), transparent 60%),
+    radial-gradient(700px 500px at 50% 110%, rgba(246,215,122,0.06), transparent 60%),
+    var(--bg);
+  position: relative;
+}
+
+::selection{ background: var(--purple); color: var(--white); }
+
+/* Custom Scrollbar */
+::-webkit-scrollbar{ width: 10px; }
+::-webkit-scrollbar-track{ background: #06060a; }
+::-webkit-scrollbar-thumb{
+  background: linear-gradient(180deg, var(--purple), var(--violet));
+  border-radius: 10px;
+  border: 2px solid #06060a;
+}
+::-webkit-scrollbar-thumb:hover{
+  box-shadow: 0 0 14px var(--purple);
+}
+
+/* ============================================================
+   GLOBAL BACKGROUND LAYERS
+   ============================================================ */
+#starscape{
+  position: fixed; inset: 0; z-index: 0;
+  pointer-events: none; opacity: 0.55;
+}
+#particles{
+  position: fixed; inset: 0; z-index: 1;
+  pointer-events: none;
+}
+.grid-overlay{
+  position: fixed; inset: 0; z-index: 2;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(200,107,255,0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(200,107,255,0.06) 1px, transparent 1px);
+  background-size: 80px 80px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 50%, #000 30%, transparent 80%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 50%, #000 30%, transparent 80%);
+}
+.orb{
+  position: fixed; z-index: 1;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(80px);
+  opacity: 0.5;
+  will-change: transform;
+}
+.orb-1{
+  top: -10%; left: -5%; width: 480px; height: 480px;
+  background: radial-gradient(circle, var(--purple), transparent 70%);
+  animation: orbFloat 18s ease-in-out infinite;
+}
+.orb-2{
+  top: 40%; right: -10%; width: 520px; height: 520px;
+  background: radial-gradient(circle, var(--violet), transparent 70%);
+  animation: orbFloat 22s ease-in-out infinite reverse;
+}
+.orb-3{
+  bottom: -10%; left: 30%; width: 400px; height: 400px;
+  background: radial-gradient(circle, var(--gold), transparent 70%);
+  opacity: 0.18;
+  animation: orbFloat 26s ease-in-out infinite;
+}
+@keyframes orbFloat{
+  0%,100%{ transform: translate(0,0) scale(1); }
+  50%{ transform: translate(60px,-40px) scale(1.08); }
+}
+
+/* Mouse-following spotlight */
+#mouse-glow{
+  position: fixed;
+  width: 600px; height: 600px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(200,107,255,0.10) 0%, transparent 60%);
+  pointer-events: none;
+  z-index: 2;
+  transform: translate(-50%,-50%);
+  transition: opacity 0.5s;
+  mix-blend-mode: screen;
+}
+
+/* ============================================================
+   CUSTOM CURSOR
+   ============================================================ */
+.cursor-dot, .cursor-ring{
+  position: fixed; top:0; left:0;
+  pointer-events: none; z-index: 9999;
+  transform: translate(-50%,-50%);
+  mix-blend-mode: difference;
+}
+.cursor-dot{
+  width: 6px; height: 6px;
+  background: var(--white);
+  border-radius: 50%;
+}
+.cursor-ring{
+  width: 36px; height: 36px;
+  border: 1.5px solid var(--violet);
+  border-radius: 50%;
+  transition: width 0.25s, height 0.25s, border-color 0.25s, background 0.25s;
+}
+.cursor-ring.is-hot{
+  width: 60px; height: 60px;
+  background: rgba(200,107,255,0.15);
+  border-color: var(--gold);
+}
+@media (hover:none){ .cursor-dot, .cursor-ring{ display:none; } }
+
+/* ============================================================
+   SCROLL PROGRESS BAR
+   ============================================================ */
+#progress-bar{
+  position: fixed; top:0; left:0;
+  height: 3px;
+  width: 0%;
+  background: linear-gradient(90deg, var(--purple), var(--violet), var(--gold));
+  z-index: 9998;
+  box-shadow: 0 0 12px var(--violet);
+}
+
+/* ============================================================
+   NAVBAR
+   ============================================================ */
+.nav-wrap{
+  position: fixed;
+  top: 20px; left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  width: calc(100% - 40px);
+  max-width: 1300px;
+  transition: max-width 0.5s var(--easing-snap), top 0.4s var(--easing-snap);
+}
+.nav-wrap.shrunk{ max-width: 880px; top: 14px; }
+.nav{
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 20px;
+  border-radius: 100px;
+  background: rgba(10,8,18,0.65);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid var(--line);
+  box-shadow:
+    0 8px 40px rgba(0,0,0,0.5),
+    inset 0 1px 0 rgba(255,255,255,0.05);
+}
+.nav-logo{
+  display: flex; align-items: center; gap: 10px;
+  text-decoration: none; color: var(--white);
+  font-family: var(--font-display);
+  font-weight: 900; letter-spacing: 0.04em;
+  font-size: 0.95rem;
+}
+.nav-logo .mark{
+  width: 28px; height: 28px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  border: 2px solid var(--gold);
+  background: radial-gradient(circle, var(--purple), transparent 70%);
+  position: relative;
+}
+.nav-logo .mark::before, .nav-logo .mark::after{
+  content: ''; position: absolute;
+  background: var(--gold);
+}
+.nav-logo .mark::before{ width: 10px; height: 2px; left:-2px; top:50%; transform: translateY(-50%); }
+.nav-logo .mark::after{ width: 2px; height: 10px; top:-2px; left:50%; transform: translateX(-50%); box-shadow: 0 22px 0 var(--gold); }
+.nav-logo .mark .dot{
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--violet);
+  box-shadow: 0 0 8px var(--violet);
+}
+.nav-links{
+  display: flex; gap: 6px;
+  list-style: none;
+}
+.nav-links a{
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  text-decoration: none;
+  padding: 8px 14px;
+  border-radius: 50px;
+  position: relative;
+  transition: color 0.25s;
+}
+.nav-links a:hover{ color: var(--white); }
+.nav-links a::before{
+  content:''; position:absolute; inset:0;
+  border-radius: 50px;
+  background: rgba(200,107,255,0.08);
+  opacity: 0; transition: opacity 0.25s;
+}
+.nav-links a:hover::before{ opacity: 1; }
+.nav-cta{
+  display: inline-flex; align-items: center; gap: 8px;
+  background: linear-gradient(135deg, var(--purple), var(--violet));
+  color: var(--white);
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  padding: 10px 18px;
+  border-radius: 50px;
+  text-decoration: none;
+  border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: 0 0 20px rgba(160,32,240,0.4), inset 0 1px 0 rgba(255,255,255,0.2);
+  transition: transform 0.25s var(--easing-snap), box-shadow 0.25s;
+}
+.nav-cta:hover{
+  transform: translateY(-2px);
+  box-shadow: 0 0 30px rgba(160,32,240,0.7), inset 0 1px 0 rgba(255,255,255,0.3);
+}
+.nav-cta::after{
+  content:'→'; transition: transform 0.25s;
+}
+.nav-cta:hover::after{ transform: translateX(3px); }
+
+@media(max-width:820px){
+  .nav-links{ display:none; }
+  .nav{ padding: 10px 12px 10px 16px; }
+}
+
+/* ============================================================
+   GLOBAL CONTAINER & SECTION
+   ============================================================ */
+.container{
+  position: relative; z-index: 5;
+  width: 100%;
+  max-width: 1340px;
+  margin: 0 auto;
+  padding: 0 32px;
+}
+section{ position: relative; z-index: 5; }
+
+.section-tag{
+  display: inline-flex; align-items: center; gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--violet);
+  padding: 7px 14px;
+  border-radius: 50px;
+  background: rgba(160,32,240,0.10);
+  border: 1px solid var(--line-strong);
+  backdrop-filter: blur(10px);
+}
+.section-tag::before{
+  content: ''; width: 6px; height: 6px;
+  background: var(--violet); border-radius: 50%;
+  box-shadow: 0 0 8px var(--violet);
+  animation: pulse 1.8s ease-in-out infinite;
+}
+@keyframes pulse{ 0%,100%{ opacity:1; transform:scale(1); } 50%{ opacity:.5; transform:scale(1.3);} }
+
+.section-header{
+  display: flex; flex-direction: column; gap: 18px;
+  margin-bottom: 60px;
+}
+.section-header h2{
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: clamp(2.4rem, 5vw, 4.4rem);
+  line-height: 0.95;
+  letter-spacing: -0.03em;
+  font-style: italic;
+}
+.section-header h2 em{
+  font-style: italic;
+  background: linear-gradient(135deg, var(--violet), var(--gold));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.section-header .lead{
+  max-width: 620px;
+  color: var(--muted);
+  font-size: 1.05rem;
+  line-height: 1.6;
+}
+
+/* ============================================================
+   HERO
+   ============================================================ */
+.hero{
+  position: relative;
+  min-height: 100vh;
+  padding: 140px 0 80px;
+  display: flex; align-items: center;
+  overflow: hidden;
+}
+.hero-inner{
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 60px;
+  align-items: center;
+  width: 100%;
+}
+.hero-eyebrow{
+  display: inline-flex; align-items: center; gap: 12px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--violet);
+  margin-bottom: 28px;
+}
+.hero-eyebrow .line{
+  width: 36px; height: 1px; background: var(--violet);
+}
+.hero-eyebrow .live{
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-left: 4px;
+  color: var(--gold);
+}
+.hero-eyebrow .live::before{
+  content:''; width:7px; height:7px; border-radius:50%;
+  background: var(--gold); box-shadow: 0 0 10px var(--gold);
+  animation: pulse 1.4s infinite;
+}
+
+.hero h1{
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-style: italic;
+  font-size: clamp(4.2rem, 12vw, 11rem);
+  line-height: 0.85;
+  letter-spacing: -0.045em;
+  margin-bottom: 28px;
+  color: var(--white);
+  position: relative;
+}
+.hero h1 .row{
+  display: block;
+  position: relative;
+}
+.hero h1 .caza{
+  -webkit-text-stroke: 2px var(--violet);
+  color: transparent;
+  font-size: 0.55em;
+  letter-spacing: 0.02em;
+  font-style: italic;
+  display: inline-block;
+  margin-bottom: 8px;
+}
+.hero h1 .tu{
+  font-size: 0.85em;
+  background: linear-gradient(180deg, var(--white) 40%, var(--violet) 90%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  display: inline-block;
+  margin-left: 14px;
+}
+.hero h1 .hit{
+  display: inline-block;
+  background: linear-gradient(135deg, var(--violet) 0%, var(--purple) 40%, var(--gold) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 28px rgba(200,107,255,0.45));
+  position: relative;
+}
+.hero h1 .hit::after{
+  content: '.';
+  -webkit-text-stroke: 0;
+  color: var(--gold);
+  filter: drop-shadow(0 0 18px var(--gold));
+}
+
+.hero p.sub{
+  font-family: var(--font-body);
+  font-size: 1.1rem;
+  line-height: 1.55;
+  color: var(--muted);
+  max-width: 520px;
+  margin-bottom: 40px;
+}
+.hero p.sub strong{ color: var(--white); font-weight: 600; }
+
+.hero-ctas{
+  display: flex; flex-wrap: wrap; gap: 14px;
+  margin-bottom: 48px;
+}
+.btn{
+  display: inline-flex; align-items: center; gap: 10px;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.92rem;
+  letter-spacing: 0.02em;
+  padding: 16px 26px;
+  border-radius: 14px;
+  text-decoration: none;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: transform 0.3s var(--easing-snap);
+  white-space: nowrap;
+}
+.btn::before{
+  content:''; position:absolute; inset:0;
+  background: linear-gradient(135deg, var(--purple), var(--violet));
+  z-index: -1;
+}
+.btn::after{
+  content:''; position:absolute; inset: -2px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, var(--violet), var(--gold), var(--violet));
+  background-size: 200% 200%;
+  z-index: -2;
+  filter: blur(8px);
+  opacity: 0;
+  transition: opacity 0.3s;
+  animation: holoShift 4s linear infinite;
+}
+.btn:hover::after{ opacity: 0.8; }
+.btn:hover{ transform: translateY(-2px); }
+.btn--primary{ color: var(--white); }
+.btn--ghost{ color: var(--white); }
+.btn--ghost::before{
+  background: rgba(244,244,244,0.04);
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  inset: 0;
+}
+.btn--ghost::after{ display:none; }
+.btn--ghost:hover{
+  background: rgba(200,107,255,0.08);
+}
+.btn .arr{ transition: transform 0.3s; }
+.btn:hover .arr{ transform: translateX(4px); }
+.btn-icon{
+  width: 18px; height: 18px;
+  display: inline-grid; place-items: center;
+}
+@keyframes holoShift{
+  0%{ background-position: 0% 50%; }
+  100%{ background-position: 200% 50%; }
+}
+
+.hero-stats{
+  display: flex; gap: 36px;
+  flex-wrap: wrap;
+}
+.hero-stat .num{
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.8rem;
+  background: linear-gradient(135deg, var(--violet), var(--gold));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  line-height: 1;
+}
+.hero-stat .lbl{
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--dim);
+  margin-top: 6px;
+}
+
+/* Hero packs */
+.hero-stage{
+  position: relative;
+  height: 600px;
+  perspective: 1400px;
+}
+.float-pack{
+  position: absolute;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+.float-pack.fp-1{
+  top: 8%; right: 6%;
+  width: 280px; height: 420px;
+  animation: floatA 6s ease-in-out infinite;
+  z-index: 3;
+}
+.float-pack.fp-2{
+  top: 38%; left: 4%;
+  width: 230px; height: 350px;
+  animation: floatB 7s ease-in-out infinite;
+  z-index: 2;
+  transform: rotate(-8deg);
+}
+.float-pack.fp-3{
+  bottom: 4%; right: 22%;
+  width: 200px; height: 300px;
+  animation: floatA 8s ease-in-out infinite reverse;
+  z-index: 1;
+  transform: rotate(6deg);
+  opacity: 0.6;
+}
+@keyframes floatA{
+  0%,100%{ transform: translateY(0) rotateZ(0deg); }
+  50%{ transform: translateY(-22px) rotateZ(-2deg); }
+}
+@keyframes floatB{
+  0%,100%{ transform: translateY(0) rotate(-8deg); }
+  50%{ transform: translateY(-18px) rotate(-6deg); }
+}
+
+/* ============================================================
+   PACK (3D booster pack visual)
+   ============================================================ */
+.pack{
+  position: relative;
+  width: 100%; height: 100%;
+  border-radius: 18px;
+  overflow: hidden;
+  transform-style: preserve-3d;
+  transition: transform 0.4s var(--easing-snap), box-shadow 0.4s;
+  cursor: pointer;
+  box-shadow:
+    0 30px 60px rgba(0,0,0,0.5),
+    0 0 0 1px rgba(200,107,255,0.2),
+    inset 0 0 0 1px rgba(255,255,255,0.05);
+}
+.pack:hover{
+  box-shadow:
+    0 40px 80px rgba(0,0,0,0.7),
+    0 0 60px rgba(200,107,255,0.5),
+    0 0 0 1px var(--violet),
+    inset 0 0 0 1px rgba(255,255,255,0.1);
+}
+.pack-bg{
+  position: absolute; inset: 0;
+  z-index: 1;
+}
+.pack-bg::before, .pack-bg::after{
+  content:''; position: absolute; inset:0;
+}
+.pack-stripe{
+  position: absolute;
+  top: 12%; left: 0; right: 0;
+  height: 38px;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(90deg, rgba(0,0,0,0.4), rgba(0,0,0,0.7), rgba(0,0,0,0.4));
+  border-top: 1px solid rgba(255,255,255,0.12);
+  border-bottom: 1px solid rgba(0,0,0,0.5);
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 900;
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--white);
+  z-index: 4;
+  text-shadow: 0 0 12px currentColor;
+}
+.pack-art{
+  position: absolute;
+  top: 24%; bottom: 22%; left: 8%; right: 8%;
+  border-radius: 8px;
+  overflow: hidden;
+  z-index: 3;
+}
+.pack-art::before{
+  content:''; position:absolute; inset:0;
+  background: radial-gradient(circle at 50% 40%, transparent 20%, rgba(0,0,0,0.7) 100%);
+}
+.pack-bottom{
+  position: absolute;
+  bottom: 6%; left: 8%; right: 8%;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  z-index: 4;
+}
+.pack-bottom .badge{
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.7);
+  padding: 4px 10px;
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 100px;
+  background: rgba(0,0,0,0.4);
+}
+.pack-bottom .set-name{
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--white);
+  text-shadow: 0 0 8px rgba(0,0,0,0.8);
+}
+/* Holographic foil overlay */
+.pack-holo{
+  position: absolute; inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  background:
+    conic-gradient(from var(--ang,0deg),
+      transparent 0%,
+      rgba(200,107,255,0.4) 15%,
+      rgba(246,215,122,0.5) 30%,
+      rgba(255,255,255,0.6) 45%,
+      rgba(160,32,240,0.4) 60%,
+      rgba(200,107,255,0.3) 75%,
+      transparent 100%);
+  mix-blend-mode: overlay;
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+.pack:hover .pack-holo{ opacity: 0.9; }
+/* Diagonal sheen */
+.pack-sheen{
+  position: absolute;
+  top: 0; bottom: 0; left: -50%;
+  width: 50%;
+  background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.18) 50%, transparent 70%);
+  z-index: 6;
+  pointer-events: none;
+  transform: skewX(-20deg);
+  transition: left 0.7s var(--easing-snap);
+}
+.pack:hover .pack-sheen{ left: 100%; }
+
+/* Color variants — Pokémon */
+.pack--pkm151 .pack-bg{
+  background:
+    radial-gradient(circle at 30% 30%, #ff6b3d, transparent 60%),
+    linear-gradient(180deg, #1a0a08 0%, #3d0e08 50%, #1a0608 100%);
+}
+.pack--pkm151 .pack-art{
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255,180,80,0.5), transparent 60%),
+    linear-gradient(135deg, #2a0e08, #6b1818 50%, #2a0a08);
+  box-shadow: inset 0 0 40px rgba(255,80,0,0.4);
+}
+.pack--pkm151 .pack-stripe{ color: #ffd28a; }
+
+.pack--prismatic .pack-bg{
+  background:
+    radial-gradient(circle at 70% 30%, #ff8ad6, transparent 60%),
+    radial-gradient(circle at 20% 70%, #7adcff, transparent 60%),
+    linear-gradient(180deg, #1a0a2a 0%, #2a0e3d 50%, #0a0820 100%);
+}
+.pack--prismatic .pack-art{
+  background:
+    conic-gradient(from 180deg at 50% 50%, #ff8ad6, #c86bff, #7adcff, #f6d77a, #ff8ad6);
+  filter: saturate(1.2);
+  box-shadow: inset 0 0 50px rgba(0,0,0,0.5);
+}
+.pack--prismatic .pack-stripe{ color: #ffb6e3; }
+
+.pack--crown .pack-bg{
+  background:
+    radial-gradient(circle at 50% 20%, #f6d77a, transparent 50%),
+    linear-gradient(180deg, #1a1208 0%, #2a1f0a 50%, #08120a 100%);
+}
+.pack--crown .pack-art{
+  background:
+    radial-gradient(circle at 50% 40%, rgba(246,215,122,0.6), transparent 60%),
+    linear-gradient(135deg, #2a1808, #4a3a18 50%, #1a3a2a);
+  box-shadow: inset 0 0 40px rgba(246,215,122,0.4);
+}
+.pack--crown .pack-stripe{ color: var(--gold); }
+
+.pack--shiny .pack-bg{
+  background:
+    radial-gradient(circle at 30% 30%, #d0d0e0, transparent 50%),
+    linear-gradient(180deg, #14141f 0%, #1a1a2e 50%, #0a0a14 100%);
+}
+.pack--shiny .pack-art{
+  background:
+    radial-gradient(circle at 50% 40%, rgba(246,215,122,0.5), transparent 50%),
+    linear-gradient(135deg, #2a2a3a, #4a4055 50%, #1a1a28);
+  box-shadow: inset 0 0 50px rgba(200,180,255,0.3);
+}
+.pack--shiny .pack-stripe{ color: #ffe8a8; }
+
+/* Color variants — One Piece */
+.pack--op05 .pack-bg{
+  background:
+    radial-gradient(circle at 50% 30%, #ff4a4a, transparent 55%),
+    linear-gradient(180deg, #1a0608 0%, #3d0810 50%, #1a0408 100%);
+}
+.pack--op05 .pack-art{
+  background:
+    radial-gradient(circle at 50% 40%, rgba(255,100,80,0.5), transparent 60%),
+    linear-gradient(135deg, #3a0808, #6b1010 50%, #2a0408);
+  box-shadow: inset 0 0 40px rgba(255,40,40,0.4);
+}
+.pack--op05 .pack-stripe{ color: #ff9a8a; }
+
+.pack--op06 .pack-bg{
+  background:
+    radial-gradient(circle at 50% 30%, #5a5a5a, transparent 50%),
+    linear-gradient(180deg, #050505 0%, #1a0a0a 50%, #050505 100%);
+}
+.pack--op06 .pack-art{
+  background:
+    radial-gradient(circle at 50% 40%, rgba(220,80,80,0.5), transparent 50%),
+    linear-gradient(135deg, #181010, #3a1818 50%, #0a0808);
+  box-shadow: inset 0 0 50px rgba(180,20,20,0.4);
+}
+.pack--op06 .pack-stripe{ color: #ffb8a8; }
+
+.pack--op07 .pack-bg{
+  background:
+    radial-gradient(circle at 50% 30%, #4a8aff, transparent 55%),
+    linear-gradient(180deg, #050a1a 0%, #0a1838 50%, #050810 100%);
+}
+.pack--op07 .pack-art{
+  background:
+    radial-gradient(circle at 50% 40%, rgba(80,180,255,0.5), transparent 60%),
+    linear-gradient(135deg, #081830, #1a3868 50%, #050a1a);
+  box-shadow: inset 0 0 40px rgba(80,160,255,0.4);
+}
+.pack--op07 .pack-stripe{ color: #a8c8ff; }
+
+.pack--op09 .pack-bg{
+  background:
+    radial-gradient(circle at 50% 30%, #4adc6a, transparent 50%),
+    linear-gradient(180deg, #050a08 0%, #0a2818 50%, #04100a 100%);
+}
+.pack--op09 .pack-art{
+  background:
+    radial-gradient(circle at 50% 40%, rgba(80,220,120,0.5), transparent 60%),
+    linear-gradient(135deg, #081a10, #1a4828 50%, #051208);
+  box-shadow: inset 0 0 40px rgba(80,220,80,0.4);
+}
+.pack--op09 .pack-stripe{ color: #a8ffc8; }
+
+/* ============================================================
+   SHOWCASE GRID
+   ============================================================ */
+.showcase{
+  padding: 120px 0;
+  position: relative;
+}
+.showcase-divider{
+  margin: 20px 0 100px;
+  display: flex; align-items: center; gap: 20px;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.showcase-divider::before, .showcase-divider::after{
+  content:''; flex: 1; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--line-strong), transparent);
+}
+.pack-grid{
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+}
+@media(max-width:1100px){ .pack-grid{ grid-template-columns: repeat(2, 1fr); } }
+@media(max-width:560px){ .pack-grid{ grid-template-columns: 1fr; } }
+
+.pack-card{
+  position: relative;
+  display: flex; flex-direction: column;
+  background: rgba(15,12,24,0.6);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: 22px;
+  overflow: hidden;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  transition: transform 0.4s var(--easing-snap), border-color 0.4s;
+}
+.pack-card:hover{
+  border-color: var(--violet);
+  transform: translateY(-8px);
+}
+.pack-card::before{
+  content:''; position:absolute; inset:0;
+  background: radial-gradient(600px circle at var(--mx,50%) var(--my,50%), rgba(200,107,255,0.12), transparent 40%);
+  opacity: 0; transition: opacity 0.4s;
+  pointer-events: none;
+}
+.pack-card:hover::before{ opacity: 1; }
+.pack-visual{
+  height: 320px;
+  perspective: 1200px;
+  margin-bottom: 22px;
+  display: grid; place-items: center;
+  position: relative;
+}
+.pack-visual .pack{
+  width: 200px; height: 300px;
+}
+.pack-meta{
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.pack-meta .code{ color: var(--violet); }
+.pack-meta .stock{
+  display: inline-flex; align-items: center; gap: 6px;
+  color: #6bff8a;
+}
+.pack-meta .stock::before{
+  content:''; width:6px; height:6px; border-radius:50%;
+  background: #6bff8a; box-shadow: 0 0 6px #6bff8a;
+}
+.pack-card h3{
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.2rem;
+  letter-spacing: -0.01em;
+  margin-bottom: 6px;
+  color: var(--white);
+}
+.pack-card .game{
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 22px;
+}
+.pack-buy{
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px;
+  margin-top: auto;
+  padding-top: 18px;
+  border-top: 1px dashed var(--line-strong);
+}
+.pack-price{
+  display: flex; flex-direction: column;
+}
+.pack-price .amount{
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.5rem;
+  background: linear-gradient(135deg, var(--white), var(--gold));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.pack-price .lbl{
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.pack-buy-btn{
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.82rem;
+  padding: 10px 16px;
+  border-radius: 100px;
+  text-decoration: none;
+  color: var(--white);
+  background: rgba(200,107,255,0.12);
+  border: 1px solid var(--line-strong);
+  transition: all 0.25s;
+}
+.pack-buy-btn:hover{
+  background: var(--purple);
+  border-color: var(--violet);
+  box-shadow: 0 0 20px rgba(200,107,255,0.4);
+  transform: translateY(-2px);
+}
+
+/* ============================================================
+   HITS LEGENDARIOS (WALL OF FAME)
+   ============================================================ */
+.legends{
+  padding: 120px 0;
+  position: relative;
+}
+.legends::before{
+  content:''; position:absolute;
+  top: 0; left: 50%; transform: translateX(-50%);
+  width: 80%; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  opacity: 0.4;
+}
+.wall{
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 22px;
+}
+@media(max-width:980px){ .wall{ grid-template-columns: repeat(2, 1fr); } }
+@media(max-width:520px){ .wall{ grid-template-columns: 1fr; } }
+
+.tcg-card{
+  position: relative;
+  aspect-ratio: 5/7;
+  border-radius: 18px;
+  overflow: hidden;
+  cursor: pointer;
+  transform-style: preserve-3d;
+  transition: transform 0.5s var(--easing-snap);
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, #14101e, #050507);
+  box-shadow:
+    0 20px 40px rgba(0,0,0,0.5),
+    inset 0 0 0 1px rgba(255,255,255,0.04);
+}
+.tcg-card:hover{
+  transform: translateY(-12px) rotateZ(-1deg);
+  box-shadow:
+    0 40px 80px rgba(0,0,0,0.7),
+    0 0 60px var(--rarity-glow, rgba(200,107,255,0.5)),
+    inset 0 0 0 1px rgba(255,255,255,0.1);
+  z-index: 10;
+}
+.tcg-card .frame{
+  position: absolute; inset: 12px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #1a1428, #0a0612);
+  border: 1px solid rgba(200,107,255,0.2);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.tcg-card .top{
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  background: linear-gradient(180deg, rgba(0,0,0,0.4), transparent);
+  z-index: 3;
+}
+.tcg-card .top .name{
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.85rem;
+  letter-spacing: -0.01em;
+  color: var(--white);
+}
+.tcg-card .top .hp{
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--gold);
+  letter-spacing: 0.1em;
+}
+.tcg-card .art{
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+.tcg-card .art::before{
+  content:'';
+  position:absolute;
+  inset:0;
+  background:
+    linear-gradient(to top, rgba(0,0,0,0.85), transparent 40%),
+    linear-gradient(to bottom, rgba(0,0,0,0.45), transparent 30%);
+  z-index:2;
+}
+.tcg-card .silhouette{
+  position: absolute; inset: 10%;
+  border-radius: 50%;
+  filter: blur(30px);
+  opacity: 0.7;
+}
+.tcg-card .silhouette-2{
+  position: absolute; inset: 25%;
+  border-radius: 50%;
+  filter: blur(20px);
+  opacity: 0.9;
+}
+.tcg-card .bottom{
+  padding: 12px 14px;
+  display: flex; align-items: center; justify-content: space-between;
+  z-index: 3;
+}
+.tcg-card .bottom .set{
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.tcg-card .bottom .rarity{
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.tcg-card .rarity-star{
+  width: 12px; height: 12px;
+  background: var(--gold);
+  clip-path: polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);
+  filter: drop-shadow(0 0 4px var(--gold));
+}
+.tcg-card .holo-foil{
+  position: absolute; inset:0;
+  background: conic-gradient(from var(--card-ang,0deg),
+    transparent 0%,
+    rgba(200,107,255,0.4) 20%,
+    rgba(246,215,122,0.5) 40%,
+    rgba(255,255,255,0.5) 50%,
+    rgba(160,32,240,0.4) 70%,
+    transparent 100%);
+  mix-blend-mode: color-dodge;
+  opacity: 0;
+  transition: opacity 0.4s;
+  pointer-events: none;
+  z-index: 5;
+}
+.tcg-card:hover .holo-foil{ opacity: 0.8; }
+
+.tcg-card .corner-mark{
+  position: absolute;
+  top: 12px; right: 12px;
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: var(--violet);
+  padding: 3px 7px;
+  background: rgba(160,32,240,0.16);
+  border: 1px solid var(--line-strong);
+  border-radius: 100px;
+  z-index: 4;
+}
+
+/* Rarity color treatments */
+.tcg-card.r-moonbreon{ --rarity-glow: rgba(180,100,255,0.7); }
+.tcg-card.r-moonbreon .silhouette{ background: radial-gradient(circle, #c86bff, transparent 60%); }
+.tcg-card.r-moonbreon .silhouette-2{ background: radial-gradient(circle, #4a1f7a, transparent 60%); }
+.tcg-card.r-moonbreon .art{ background: radial-gradient(circle at 50% 50%, #2a1a3a, #050010); }
+
+.tcg-card.r-charizard{ --rarity-glow: rgba(255,140,60,0.7); }
+.tcg-card.r-charizard .silhouette{ background: radial-gradient(circle, #ff8a3d, transparent 60%); }
+.tcg-card.r-charizard .silhouette-2{ background: radial-gradient(circle, #6b1f08, transparent 60%); }
+.tcg-card.r-charizard .art{ background: radial-gradient(circle at 50% 50%, #2a0a08, #050000); }
+
+.tcg-card.r-giratina{ --rarity-glow: rgba(120,80,255,0.7); }
+.tcg-card.r-giratina .silhouette{ background: radial-gradient(circle, #7a5aff, transparent 60%); }
+.tcg-card.r-giratina .silhouette-2{ background: radial-gradient(circle, #2a1a4a, transparent 60%); }
+.tcg-card.r-giratina .art{ background: radial-gradient(circle at 50% 50%, #1a1a3a, #050010); }
+
+.tcg-card.r-pikachu{ --rarity-glow: rgba(246,215,122,0.85); }
+.tcg-card.r-pikachu .silhouette{ background: radial-gradient(circle, var(--gold), transparent 60%); }
+.tcg-card.r-pikachu .silhouette-2{ background: radial-gradient(circle, #5a3a08, transparent 60%); }
+.tcg-card.r-pikachu .art{ background: radial-gradient(circle at 50% 50%, #2a1f08, #100a00); }
+
+.tcg-card.r-luffy{ --rarity-glow: rgba(255,80,80,0.7); }
+.tcg-card.r-luffy .silhouette{ background: radial-gradient(circle, #ff5a5a, transparent 60%); }
+.tcg-card.r-luffy .silhouette-2{ background: radial-gradient(circle, #6b1010, transparent 60%); }
+.tcg-card.r-luffy .art{ background: radial-gradient(circle at 50% 50%, #2a0a0a, #050000); }
+
+.tcg-card.r-ace{ --rarity-glow: rgba(255,140,40,0.7); }
+.tcg-card.r-ace .silhouette{ background: radial-gradient(circle, #ffa040, transparent 60%); }
+.tcg-card.r-ace .silhouette-2{ background: radial-gradient(circle, #5a2a08, transparent 60%); }
+.tcg-card.r-ace .art{ background: radial-gradient(circle at 50% 50%, #2a1408, #100500); }
+
+.tcg-card.r-shanks{ --rarity-glow: rgba(220,80,80,0.7); }
+.tcg-card.r-shanks .silhouette{ background: radial-gradient(circle, #dc5050, transparent 60%); }
+.tcg-card.r-shanks .silhouette-2{ background: radial-gradient(circle, #4a1010, transparent 60%); }
+.tcg-card.r-shanks .art{ background: radial-gradient(circle at 50% 50%, #2a0a0a, #050000); }
+
+.tcg-card.r-law{ --rarity-glow: rgba(120,200,255,0.7); }
+.tcg-card.r-law .silhouette{ background: radial-gradient(circle, #7accff, transparent 60%); }
+.tcg-card.r-law .silhouette-2{ background: radial-gradient(circle, #1a3a5a, transparent 60%); }
+.tcg-card.r-law .art{ background: radial-gradient(circle at 50% 50%, #08182a, #000810); }
+
+/* ============================================================
+   EXPERIENCIA
+   ============================================================ */
+.experiencia{
+  padding: 140px 0;
+  position: relative;
+}
+.exp-inner{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 60px;
+  align-items: center;
+}
+@media(max-width:980px){ .exp-inner{ grid-template-columns: 1fr; } }
+.exp-text h2{
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-style: italic;
+  font-size: clamp(2.2rem, 4.5vw, 3.6rem);
+  line-height: 1;
+  letter-spacing: -0.03em;
+  margin-bottom: 28px;
+}
+.exp-text h2 .glow{
+  background: linear-gradient(135deg, var(--violet), var(--gold));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 30px rgba(200,107,255,0.35));
+}
+.exp-text p{
+  font-size: 1.05rem;
+  line-height: 1.65;
+  color: var(--muted);
+  margin-bottom: 16px;
+  max-width: 480px;
+}
+.exp-stats{
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  margin-top: 36px;
+}
+.exp-stat{
+  padding: 22px;
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  backdrop-filter: blur(20px);
+}
+.exp-stat .v{
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-style: italic;
+  font-size: 2.2rem;
+  background: linear-gradient(135deg, var(--violet), var(--gold));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+.exp-stat .l{
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--muted);
+}
+
+.exp-visual{
+  position: relative;
+  height: 500px;
+  perspective: 1200px;
+}
+.exp-card-stack{
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+  width: 280px;
+}
+.exp-card-stack .tcg-card{
+  position: absolute;
+  width: 260px;
+}
+.exp-card-stack .tcg-card:nth-child(1){
+  top: -180px; left: -80px;
+  transform: rotate(-12deg);
+  z-index: 1;
+  opacity: 0.55;
+}
+.exp-card-stack .tcg-card:nth-child(2){
+  top: -90px; left: 0;
+  transform: rotate(-4deg);
+  z-index: 2;
+  opacity: 0.85;
+}
+.exp-card-stack .tcg-card:nth-child(3){
+  top: 0; left: 60px;
+  transform: rotate(8deg);
+  z-index: 3;
+}
+.exp-live{
+  position: absolute;
+  bottom: 0; right: 0;
+  padding: 14px 18px;
+  background: rgba(15,12,24,0.85);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  display: flex; align-items: center; gap: 12px;
+  z-index: 4;
+}
+.exp-live .live-dot{
+  width: 10px; height: 10px; border-radius: 50%;
+  background: #ff3a4a;
+  box-shadow: 0 0 12px #ff3a4a;
+  animation: pulse 1.4s infinite;
+}
+.exp-live .live-text{
+  display: flex; flex-direction: column;
+}
+.exp-live .live-text .l{
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #ff7a8a;
+}
+.exp-live .live-text .v{
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--white);
+}
+
+/* ============================================================
+   BENEFICIOS
+   ============================================================ */
+.benefits{
+  padding: 120px 0;
+}
+.benefit-grid{
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+@media(max-width:920px){ .benefit-grid{ grid-template-columns: repeat(2, 1fr); } }
+@media(max-width:560px){ .benefit-grid{ grid-template-columns: 1fr; } }
+.benefit-card{
+  position: relative;
+  padding: 32px 28px;
+  border-radius: 22px;
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  overflow: hidden;
+  transition: transform 0.4s var(--easing-snap), border-color 0.4s;
+}
+.benefit-card:hover{
+  transform: translateY(-6px);
+  border-color: var(--violet);
+}
+.benefit-card::before{
+  content:''; position:absolute;
+  top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--violet), transparent);
+  opacity: 0; transition: opacity 0.4s;
+}
+.benefit-card:hover::before{ opacity: 1; }
+.benefit-card::after{
+  content:''; position:absolute;
+  top: -50%; right: -50%;
+  width: 200px; height: 200px;
+  background: radial-gradient(circle, rgba(200,107,255,0.15), transparent 70%);
+  opacity: 0; transition: opacity 0.4s;
+  pointer-events: none;
+}
+.benefit-card:hover::after{ opacity: 1; }
+.benefit-icon{
+  width: 52px; height: 52px;
+  display: grid; place-items: center;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(160,32,240,0.2), rgba(200,107,255,0.05));
+  border: 1px solid var(--line-strong);
+  margin-bottom: 22px;
+  color: var(--violet);
+  transition: all 0.4s;
+}
+.benefit-card:hover .benefit-icon{
+  background: linear-gradient(135deg, var(--purple), var(--violet));
+  color: var(--white);
+  box-shadow: 0 0 24px rgba(200,107,255,0.5);
+}
+.benefit-card h3{
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.25rem;
+  letter-spacing: -0.01em;
+  margin-bottom: 10px;
+  color: var(--white);
+}
+.benefit-card p{
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--muted);
+}
+.benefit-num{
+  position: absolute;
+  top: 24px; right: 24px;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  color: var(--dim);
+}
+
+/* ============================================================
+   CTA FINAL
+   ============================================================ */
+.cta-final{
+  padding: 160px 0 140px;
+  position: relative;
+  text-align: center;
+  overflow: hidden;
+}
+.cta-final::before{
+  content:''; position: absolute;
+  top: 50%; left: 50%;
+  width: 900px; height: 900px;
+  transform: translate(-50%,-50%);
+  background: radial-gradient(circle, rgba(160,32,240,0.25), transparent 60%);
+  pointer-events: none;
+  z-index: -1;
+}
+.cta-final::after{
+  content:''; position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background:
+    radial-gradient(circle at 20% 30%, rgba(200,107,255,0.15), transparent 40%),
+    radial-gradient(circle at 80% 70%, rgba(246,215,122,0.1), transparent 40%);
+  pointer-events: none;
+  z-index: -1;
+}
+.cta-final .container{ position: relative; z-index: 2; }
+.cta-tag{
+  margin-bottom: 32px;
+}
+.cta-final h2{
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-style: italic;
+  font-size: clamp(3rem, 9vw, 8rem);
+  line-height: 0.9;
+  letter-spacing: -0.04em;
+  margin-bottom: 50px;
+  max-width: 1100px;
+  margin-left: auto; margin-right: auto;
+}
+.cta-final h2 .line1{ display: block; }
+.cta-final h2 .line2{
+  display: block;
+  background: linear-gradient(135deg, var(--violet) 20%, var(--gold) 80%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 30px rgba(200,107,255,0.5));
+}
+.cta-final .btn{
+  font-size: 1.05rem;
+  padding: 20px 36px;
+}
+.cta-foot{
+  margin-top: 36px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--dim);
+  display: flex; align-items: center; justify-content: center; gap: 20px;
+  flex-wrap: wrap;
+}
+.cta-foot span{ display:inline-flex; align-items:center; gap: 8px; }
+.cta-foot .sep{ width: 4px; height: 4px; border-radius: 50%; background: var(--violet); }
+
+/* Smoke effects in CTA */
+.smoke{
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.4;
+  pointer-events: none;
+  z-index: -1;
+}
+.smoke-1{
+  width: 400px; height: 400px;
+  top: 20%; left: 10%;
+  background: radial-gradient(circle, var(--purple), transparent 60%);
+  animation: smokeFloat 12s ease-in-out infinite;
+}
+.smoke-2{
+  width: 350px; height: 350px;
+  bottom: 20%; right: 10%;
+  background: radial-gradient(circle, var(--violet), transparent 60%);
+  animation: smokeFloat 15s ease-in-out infinite reverse;
+}
+@keyframes smokeFloat{
+  0%,100%{ transform: translate(0,0) scale(1); opacity: 0.4; }
+  50%{ transform: translate(50px,-30px) scale(1.2); opacity: 0.6; }
+}
+
+/* ============================================================
+   FOOTER
+   ============================================================ */
+footer{
+  padding: 80px 0 40px;
+  border-top: 1px solid var(--line);
+  position: relative;
+  z-index: 5;
+}
+.foot-inner{
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr 1fr;
+  gap: 40px;
+  margin-bottom: 60px;
+}
+@media(max-width:820px){ .foot-inner{ grid-template-columns: 1fr 1fr; } }
+.foot-brand{
+  display: flex; flex-direction: column; gap: 14px;
+  max-width: 320px;
+}
+.foot-brand .nav-logo{ font-size: 1.1rem; }
+.foot-brand p{
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+.foot-col h4{
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--violet);
+  margin-bottom: 18px;
+}
+.foot-col ul{ list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.foot-col a{
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.92rem;
+  transition: color 0.25s, transform 0.25s;
+  display: inline-block;
+}
+.foot-col a:hover{ color: var(--white); transform: translateX(4px); }
+.foot-bottom{
+  padding-top: 32px;
+  border-top: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 16px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  color: var(--dim);
+  text-transform: uppercase;
+}
+
+.haunter-floating{position:fixed;right:40px;bottom:40px;width:120px;z-index:999;opacity:.15;pointer-events:none;animation:hauntFloat 6s ease-in-out infinite;}
+@keyframes hauntFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-20px)}}
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media(max-width:980px){
+  .hero{ padding: 130px 0 60px; }
+  .hero-inner{ grid-template-columns: 1fr; gap: 0; }
+  .hero-stage{ display: none; }
+  .hero h1{ font-size: clamp(3.5rem, 14vw, 6.5rem); }
+}
+@media(max-width:560px){
+  .container{ padding: 0 18px; }
+  .nav-wrap{ top: 12px; width: calc(100% - 24px); }
+  .nav-links{ display:none; }
+  .hero-ctas{ flex-direction: column; align-items: stretch; }
+  .btn{ justify-content: center; }
+  .hero-stats{ gap: 24px; }
+  .showcase, .legends, .experiencia, .benefits{ padding: 80px 0; }
+  .cta-final{ padding: 100px 0; }
+}
+
+/* Reveal animation utility */
+.reveal{
+  opacity: 0;
+  transform: translateY(40px);
+  transition: opacity 0.9s var(--easing-snap), transform 0.9s var(--easing-snap);
+}
+.reveal.in{ opacity: 1; transform: translateY(0); }
+</style>
+</head>
+<body>
+
+<!-- BACKGROUND LAYERS -->
+<canvas id="starscape"></canvas>
+<canvas id="particles"></canvas>
+<div class="grid-overlay"></div>
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+<div class="orb orb-3"></div>
+<div id="mouse-glow"></div>
+
+<!-- CUSTOM CURSOR -->
+<div class="cursor-dot"></div>
+<div class="cursor-ring"></div>
+
+<!-- SCROLL PROGRESS -->
+<div id="progress-bar"></div>
+
+<!-- NAVBAR -->
+<div class="nav-wrap" id="navWrap">
+  <nav class="nav">
+    <a href="#" class="nav-logo">
+      <span class="mark"><span class="dot"></span></span>
+      <span>HIT HUNTERS</span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="#inicio">Inicio</a></li>
+      <li><a href="#pokemon">Pokémon</a></li>
+      <li><a href="#onepiece">One Piece</a></li>
+      <li><a href="#hits">Hits</a></li>
+      <li><a href="#comunidad">Comunidad</a></li>
+    </ul>
+    <a href="#pokemon" class="nav-cta">Comprar ahora</a>
+  </nav>
+</div>
+
+<!-- HERO -->
+<section class="hero" id="inicio">
+  <div class="container">
+    <div class="hero-inner">
+      <div class="hero-text">
+        <div class="hero-eyebrow reveal">
+          <span class="line"></span>
+          <span>// TRADING CARD HUNTING · EST. 2024</span>
+          <span class="live">EN DIRECTO</span>
+        </div>
+        <h1 class="reveal">
+          <span class="row caza">CAZA TU</span>
+          <span class="row"><span class="hit">HIT.</span></span>
+        </h1>
+        <p class="sub reveal">
+          <strong>Pokémon TCG</strong> y <strong>One Piece Card Game</strong>.
+          Sobres premium. Pulls legendarios.
+          La experiencia definitiva para coleccionistas que cazan la próxima carta.
+        </p>
+        <div class="hero-ctas reveal">
+          <a href="#pokemon" class="btn btn--primary">
+            <span class="btn-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>
+            </span>
+            Abrir sobres Pokémon
+            <span class="arr">→</span>
+          </a>
+          <a href="#onepiece" class="btn btn--ghost">
+            <span class="btn-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 L2 9 L12 16 L22 9 Z"/><path d="M2 17 L12 22 L22 17"/></svg>
+            </span>
+            Abrir sobres One Piece
+            <span class="arr">→</span>
+          </a>
+        </div>
+        <div class="hero-stats reveal">
+          <div class="hero-stat">
+            <div class="num">+2.5K</div>
+            <div class="lbl">Pulls cazados</div>
+          </div>
+          <div class="hero-stat">
+            <div class="num">100%</div>
+            <div class="lbl">Producto original</div>
+          </div>
+          <div class="hero-stat">
+            <div class="num">24h</div>
+            <div class="lbl">Envío express</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-stage">
+        <!-- Floating packs -->
+        <div class="float-pack fp-1 tilt">
+          <div class="pack pack--prismatic">
+            <div class="pack-bg"></div>
+            <div class="pack-stripe">HIT HUNTERS</div>
+            <div class="pack-art"></div>
+            <div class="pack-bottom">
+              <div class="badge">Pokémon TCG</div>
+              <div class="set-name">Prismatic Evolutions</div>
+            </div>
+            <div class="pack-holo"></div>
+            <div class="pack-sheen"></div>
+          </div>
+        </div>
+        <div class="float-pack fp-2 tilt">
+          <div class="pack pack--op07">
+            <div class="pack-bg"></div>
+            <div class="pack-stripe">HIT HUNTERS</div>
+            <div class="pack-art"></div>
+            <div class="pack-bottom">
+              <div class="badge">One Piece TCG</div>
+              <div class="set-name">OP-07</div>
+            </div>
+            <div class="pack-holo"></div>
+            <div class="pack-sheen"></div>
+          </div>
+        </div>
+        <div class="float-pack fp-3 tilt">
+          <div class="pack pack--crown">
+            <div class="pack-bg"></div>
+            <div class="pack-stripe">HH</div>
+            <div class="pack-art"></div>
+            <div class="pack-bottom">
+              <div class="set-name">Crown Zenith</div>
+            </div>
+            <div class="pack-holo"></div>
+            <div class="pack-sheen"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SHOWCASE POKÉMON -->
+<section class="showcase" id="pokemon">
+  <div class="container">
+    <div class="section-header reveal">
+      <span class="section-tag">// SET 01 · Pokémon Trading Card Game</span>
+      <h2>Sobres <em>legendarios</em><br/>del universo Pokémon.</h2>
+      <p class="lead">Los sets más cazados de la última generación. Sellado, original, listo para que tu próximo pull sea historia.</p>
+    </div>
+
+    <div class="pack-grid">
+      <!-- Pokémon 151 -->
+      <div class="pack-card reveal" data-track>
+        <div class="pack-visual">
+          <div class="pack pack--pkm151 tilt">
+            <div class="pack-bg"></div>
+            <div class="pack-stripe">HIT HUNTERS</div>
+            <div class="pack-art"></div>
+            <div class="pack-bottom">
+              <div class="badge">Kanto Edition</div>
+              <div class="set-name">151</div>
+            </div>
+            <div class="pack-holo"></div>
+            <div class="pack-sheen"></div>
+          </div>
+        </div>
+        <div class="pack-meta">
+          <span class="code">// SV-3.5</span>
+          <span class="stock">Stock</span>
+        </div>
+        <h3>Pokémon 151</h3>
+        <div class="game">Scarlet & Violet</div>
+        <div class="pack-buy">
+          <div class="pack-price">
+            <span class="amount">€8,90</span>
+            <span class="lbl">Sobre</span>
+          </div>
+          <a href="#" class="pack-buy-btn">Comprar →</a>
+        </div>
+      </div>
+
+      <!-- Prismatic Evolutions -->
+      <div class="pack-card reveal" data-track>
+        <div class="pack-visual">
+          <div class="pack pack--prismatic tilt">
+            <div class="pack-bg"></div>
+            <div class="pack-stripe">HIT HUNTERS</div>
+            <div class="pack-art"></div>
+            <div class="pack-bottom">
+              <div class="badge">Eevee Special</div>
+              <div class="set-name">Prismatic</div>
+            </div>
+            <div class="pack-holo"></div>
+            <div class="pack-sheen"></div>
+          </div>
+        </div>
+        <div class="pack-meta">
+          <span class="code">// SV-8.5</span>
+          <span class="stock">Stock</span>
+        </div>
+        <h3>Prismatic Evolutions</h3>
+        <div class="game">Scarlet & Violet</div>
+        <div class="pack-buy">
+          <div class="pack-price">
+            <span class="amount">€14,50</span>
+            <span class="lbl">Sobre</span>
+          </div>
+          <a href="#" class="pack-buy-btn">Comprar →</a>
+        </div>
+      </div>
+
+      <!-- Crown Zenith -->
+      <div class="pack-card reveal" data-track>
+        <div class="pack-visual">
+          <div class="pack pack--crown tilt">
+            <div class="pack-bg"></div>
+            <div class="pack-stripe">HIT HUNTERS</div>
+            <div class="pack-art"></div>
+            <div class="pack-bottom">
+              <div class="badge">Galar Era</div>
+              <div class="set-name">Crown Zenith</div>
+            </div>
+            <div class="pack-holo"></div>
+            <div class="pack-sheen"></div>
+          </div>
+        </div>
+        <div class="pack-meta">
+          <span class="code">// SWSH-12.5</span>
+          <span class="stock">Stock</span>
+        </div>
+        <h3>Crown Zenith</h3>
+        <div class="game">Sword & Shield</div>
+        <div class="pack-buy">
+          <div class="pack-price">
+            <span class="amount">€11,90</span>
+            <span class="lbl">Sobre</span>
+          </div>
+          <a href="#" class="pack-buy-btn">Comprar →</a>
+        </div>
+      </div>
+
+      <!-- Shiny Treasure EX -->
+      <div class="pack-card reveal" data-track>
+        <div class="pack-visual">
+          <div class="pack pack--shiny tilt">
+            <div class="pack-bg"></div>
+            <div class="pack-stripe">HIT HUNTERS</div>
+            <div class="pack-art"></div>
+            <div class="pack-bottom">
+              <div class="badge">JP Edition</div>
+              <div class="set-name">Shiny Treasure</div>
+            </div>
+            <div class="pack-holo"></div>
+            <div class="pack-sheen"></div>
+          </div>
+        </div>
+        <div class="pack-meta">
+          <span class="code">// SV-4A</span>
+          <span class="stock">Stock</span>
+        </div>
+        <h3>Shiny Treasure EX</h3>
+        <div class="game">Japanese · Scarlet & Violet</div>
+        <div class="pack-buy">
+          <div class="pack-price">
+            <span class="amount">€7,50</span>
+            <span class="lbl">Sobre</span>
+          </div>
+          <a href="#" class="pack-buy-btn">Comprar →</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DIVIDER -->
+<div class="container">
+  <div class="showcase-divider">
+    <span>// SET 02 · One Piece Card Game</span>
+  </div>
+</div>
+
+<!-- SHOWCASE ONE PIECE -->
+<section class="showcase" id="onepiece" style="padding-top:0;">
+  <div class="container">
+    <div class="section-header reveal">
+      <h2>Pulls del mar <em>más temidos</em>.</h2>
+      <p class="lead">De Awakening of the New Era a Emperors in the New World. Cada sobre puede esconder el manga rare que estás cazando.</p>
+    </div>
+
+    <div class="pack-grid">
+      <!-- OP-05 -->
+      <div class="pack-card reveal" data-track>
+        <div class="pack-visual">
+          <div class="pack pack--op05 tilt">
+            <div class="pack-bg"></div>
+            <div class="pack-stripe">HIT HUNTERS</div>
+            <div class="pack-art"></div>
+            <div class="pack-bottom">
+              <div class="badge">New Era</div>
+              <div class="set-name">OP-05</div>
+            </div>
+            <div class="pack-holo"></div>
+            <div class="pack-sheen"></div>
+          </div>
+        </div>
+        <div class="pack-meta">
+          <span class="code">// OP-05</span>
+          <span class="stock">Stock</span>
+        </div>
+        <h3>Awakening</h3>
+        <div class="game">One Piece · OP-05</div>
+        <div class="pack-buy">
+          <div class="pack-price">
+            <span class="amount">€4,90</span>
+            <span class="lbl">Sobre</span>
+          </div>
+          <a href="#" class="pack-buy-btn">Comprar →</a>
+        </div>
+      </div>
+
+      <!-- OP-06 -->
+      <div class="pack-card reveal" data-track>
+        <div class="pack-visual">
+          <div class="pack pack--op06 tilt">
+            <div class="pack-bg"></div>
+            <div class="pack-stripe">HIT HUNTERS</div>
+            <div class="pack-art"></div>
+            <div class="pack-bottom">
+              <div class="badge">Captains</div>
+              <div class="set-name">OP-06</div>
+            </div>
+            <div class="pack-holo"></div>
+            <div class="pack-sheen"></div>
+          </div>
+        </div>
+        <div class="pack-meta">
+          <span class="code">// OP-06</span>
+          <span class="stock">Stock</span>
+        </div>
+        <h3>Wings of Captain</h3>
+        <div class="game">One Piece · OP-06</div>
+        <div class="pack-buy">
+          <div class="pack-price">
+            <span class="amount">€5,50</span>
+            <span class="lbl">Sobre</span>
+          </div>
+          <a href="#" class="pack-buy-btn">Comprar →</a>
+        </div>
+      </div>
+
+      <!-- OP-07 -->
+      <div class="pack-card reveal" data-track>
+        <div class="pack-visual">
+          <div class="pack pack--op07 tilt">
+            <div class="pack-bg"></div>
+            <div class="pack-stripe">HIT HUNTERS</div>
+            <div class="pack-art"></div>
+            <div class="pack-bottom">
+              <div class="badge">500 Years</div>
+              <div class="set-name">OP-07</div>
+            </div>
+            <div class="pack-holo"></div>
+            <div class="pack-sheen"></div>
+          </div>
+        </div>
+        <div class="pack-meta">
+          <span class="code">// OP-07</span>
+          <span class="stock">Stock</span>
+        </div>
+        <h3>500 Years Future</h3>
+        <div class="game">One Piece · OP-07</div>
+        <div class="pack-buy">
+          <div class="pack-price">
+            <span class="amount">€6,90</span>
+            <span class="lbl">Sobre</span>
+          </div>
+          <a href="#" class="pack-buy-btn">Comprar →</a>
+        </div>
+      </div>
+
+      <!-- OP-09 -->
+      <div class="pack-card reveal" data-track>
+        <div class="pack-visual">
+          <div class="pack pack--op09 tilt">
+            <div class="pack-bg"></div>
+            <div class="pack-stripe">HIT HUNTERS</div>
+            <div class="pack-art"></div>
+            <div class="pack-bottom">
+              <div class="badge">Emperors</div>
+              <div class="set-name">OP-09</div>
+            </div>
+            <div class="pack-holo"></div>
+            <div class="pack-sheen"></div>
+          </div>
+        </div>
+        <div class="pack-meta">
+          <span class="code">// OP-09</span>
+          <span class="stock">Stock</span>
+        </div>
+        <h3>Emperors New World</h3>
+        <div class="game">One Piece · OP-09</div>
+        <div class="pack-buy">
+          <div class="pack-price">
+            <span class="amount">€7,90</span>
+            <span class="lbl">Sobre</span>
+          </div>
+          <a href="#" class="pack-buy-btn">Comprar →</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HITS LEGENDARIOS -->
+<section class="legends" id="hits">
+  <div class="container">
+    <div class="section-header reveal">
+      <span class="section-tag">// WALL OF FAME · Pulls que pasaron a la historia</span>
+      <h2>Hits <em>legendarios.</em></h2>
+      <p class="lead">Las cartas que todo cazador sueña sacar de un sobre. Estos son los pulls que marcan carrera. ¿Cuál vas a cazar tú?</p>
+    </div>
+
+    <div class="wall">
+      <!-- Moonbreon -->
+      <div class="tcg-card r-moonbreon tilt-soft">
+        <div class="silhouette"></div>
+        <div class="silhouette-2"></div>
+        <div class="corner-mark">PKM · ALT ART</div>
+        <div class="holo-foil"></div>
+        <div class="frame">
+          <div class="top">
+            <span class="name">Moonbreon</span>
+            <span class="hp">230 HP</span>
+          </div>
+          <div class="art" style="background-image:url('images/P1.jpg')"></div>
+          <div class="bottom">
+            <span class="set">// Evolving Skies</span>
+            <span class="rarity"><span class="rarity-star"></span><span class="rarity-star"></span><span class="rarity-star"></span></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charizard -->
+      <div class="tcg-card r-charizard tilt-soft">
+        <div class="silhouette"></div>
+        <div class="silhouette-2"></div>
+        <div class="corner-mark">PKM · SIR</div>
+        <div class="holo-foil"></div>
+        <div class="frame">
+          <div class="top">
+            <span class="name">Charizard EX</span>
+            <span class="hp">330 HP</span>
+          </div>
+          <div class="art" style="background-image:url('images/P2.jpg')"></div>
+          <div class="bottom">
+            <span class="set">// Obsidian Flames</span>
+            <span class="rarity"><span class="rarity-star"></span><span class="rarity-star"></span><span class="rarity-star"></span></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Giratina -->
+      <div class="tcg-card r-giratina tilt-soft">
+        <div class="silhouette"></div>
+        <div class="silhouette-2"></div>
+        <div class="corner-mark">PKM · ALT ART</div>
+        <div class="holo-foil"></div>
+        <div class="frame">
+          <div class="top">
+            <span class="name">Giratina VSTAR</span>
+            <span class="hp">280 HP</span>
+          </div>
+          <div class="art" style="background-image:url('images/P3.png')"></div>
+          <div class="bottom">
+            <span class="set">// Lost Origin</span>
+            <span class="rarity"><span class="rarity-star"></span><span class="rarity-star"></span><span class="rarity-star"></span></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pikachu Illustrator -->
+      <div class="tcg-card r-pikachu tilt-soft">
+        <div class="silhouette"></div>
+        <div class="silhouette-2"></div>
+        <div class="corner-mark">PKM · GRAIL</div>
+        <div class="holo-foil"></div>
+        <div class="frame">
+          <div class="top">
+            <span class="name">Pikachu Illustrator</span>
+            <span class="hp">40 HP</span>
+          </div>
+          <div class="art" style="background-image:url('images/P4.png')"></div>
+          <div class="bottom">
+            <span class="set">// Promo · 1998</span>
+            <span class="rarity"><span class="rarity-star"></span><span class="rarity-star"></span><span class="rarity-star"></span></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Manga Luffy -->
+      <div class="tcg-card r-luffy tilt-soft">
+        <div class="silhouette"></div>
+        <div class="silhouette-2"></div>
+        <div class="corner-mark">OP · MANGA</div>
+        <div class="holo-foil"></div>
+        <div class="frame">
+          <div class="top">
+            <span class="name">Monkey D. Luffy</span>
+            <span class="hp">7000</span>
+          </div>
+          <div class="art" style="background-image:url('images/O1.jpg')"></div>
+          <div class="bottom">
+            <span class="set">// Manga Rare</span>
+            <span class="rarity"><span class="rarity-star"></span><span class="rarity-star"></span><span class="rarity-star"></span></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Manga Ace -->
+      <div class="tcg-card r-ace tilt-soft">
+        <div class="silhouette"></div>
+        <div class="silhouette-2"></div>
+        <div class="corner-mark">OP · MANGA</div>
+        <div class="holo-foil"></div>
+        <div class="frame">
+          <div class="top">
+            <span class="name">Portgas D. Ace</span>
+            <span class="hp">6000</span>
+          </div>
+          <div class="art" style="background-image:url('images/O2.jpg')"></div>
+          <div class="bottom">
+            <span class="set">// Manga Rare</span>
+            <span class="rarity"><span class="rarity-star"></span><span class="rarity-star"></span><span class="rarity-star"></span></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Manga Shanks -->
+      <div class="tcg-card r-shanks tilt-soft">
+        <div class="silhouette"></div>
+        <div class="silhouette-2"></div>
+        <div class="corner-mark">OP · MANGA</div>
+        <div class="holo-foil"></div>
+        <div class="frame">
+          <div class="top">
+            <span class="name">Red-Hair Shanks</span>
+            <span class="hp">9000</span>
+          </div>
+          <div class="art" style="background-image:url('images/O3.jpg')"></div>
+          <div class="bottom">
+            <span class="set">// Manga Rare</span>
+            <span class="rarity"><span class="rarity-star"></span><span class="rarity-star"></span><span class="rarity-star"></span></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Manga Law -->
+      <div class="tcg-card r-law tilt-soft">
+        <div class="silhouette"></div>
+        <div class="silhouette-2"></div>
+        <div class="corner-mark">OP · MANGA</div>
+        <div class="holo-foil"></div>
+        <div class="frame">
+          <div class="top">
+            <span class="name">Trafalgar Law</span>
+            <span class="hp">7000</span>
+          </div>
+          <div class="art" style="background-image:url('images/O4.jpg')"></div>
+          <div class="bottom">
+            <span class="set">// Manga Rare</span>
+            <span class="rarity"><span class="rarity-star"></span><span class="rarity-star"></span><span class="rarity-star"></span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- EXPERIENCIA -->
+<section class="experiencia" id="comunidad">
+  <div class="container">
+    <div class="exp-inner">
+      <div class="exp-text reveal">
+        <span class="section-tag" style="margin-bottom:24px;">// LA EXPERIENCIA HIT HUNTERS</span>
+        <h2>Cazar es un <span class="glow">arte.</span><br/>Y tú estás en la jauría.</h2>
+        <p>
+          Empezamos como coleccionistas. Lo seguimos siendo.
+          La adrenalina de romper un sobre, ver el reverso de la última carta, y reconocer un alt art legendario. Esa es nuestra obsesión.
+        </p>
+        <p>
+          Por eso seleccionamos cada producto. Solo sobres originales. Solo sets que pegan. Y cada semana llevamos los pulls al directo, en comunidad, donde el siguiente hit puede ser de cualquiera.
+        </p>
+        <div class="exp-stats">
+          <div class="exp-stat">
+            <div class="v">+2.5K</div>
+            <div class="l">Pulls cazados</div>
+          </div>
+          <div class="exp-stat">
+            <div class="v">98%</div>
+            <div class="l">Reseñas 5★</div>
+          </div>
+          <div class="exp-stat">
+            <div class="v">3-5</div>
+            <div class="l">Directos / semana</div>
+          </div>
+          <div class="exp-stat">
+            <div class="v">24h</div>
+            <div class="l">Envío express</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="exp-visual reveal">
+        <div class="exp-card-stack">
+          <div class="tcg-card r-pikachu tilt-soft">
+            <div class="silhouette"></div>
+            <div class="silhouette-2"></div>
+            <div class="corner-mark">GRAIL</div>
+            <div class="holo-foil"></div>
+            <div class="frame">
+              <div class="top"><span class="name">Pikachu</span><span class="hp">40 HP</span></div>
+              <div class="art"></div>
+              <div class="bottom">
+                <span class="set">// Illustrator</span>
+                <span class="rarity"><span class="rarity-star"></span><span class="rarity-star"></span><span class="rarity-star"></span></span>
+              </div>
+            </div>
+          </div>
+          <div class="tcg-card r-luffy tilt-soft">
+            <div class="silhouette"></div>
+            <div class="silhouette-2"></div>
+            <div class="corner-mark">MANGA</div>
+            <div class="holo-foil"></div>
+            <div class="frame">
+              <div class="top"><span class="name">Luffy</span><span class="hp">7000</span></div>
+              <div class="art"></div>
+              <div class="bottom">
+                <span class="set">// Manga Rare</span>
+                <span class="rarity"><span class="rarity-star"></span><span class="rarity-star"></span><span class="rarity-star"></span></span>
+              </div>
+            </div>
+          </div>
+          <div class="tcg-card r-moonbreon tilt-soft">
+            <div class="silhouette"></div>
+            <div class="silhouette-2"></div>
+            <div class="corner-mark">ALT ART</div>
+            <div class="holo-foil"></div>
+            <div class="frame">
+              <div class="top"><span class="name">Moonbreon</span><span class="hp">230 HP</span></div>
+              <div class="art"></div>
+              <div class="bottom">
+                <span class="set">// Evolving Skies</span>
+                <span class="rarity"><span class="rarity-star"></span><span class="rarity-star"></span><span class="rarity-star"></span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="exp-live">
+          <span class="live-dot"></span>
+          <div class="live-text">
+            <span class="l">EN DIRECTO</span>
+            <span class="v">412 cazadores conectados</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- BENEFICIOS -->
+<section class="benefits">
+  <div class="container">
+    <div class="section-header reveal">
+      <span class="section-tag">// LA VENTAJA HIT HUNTERS</span>
+      <h2>Solo <em>lo mejor</em><br/>para tu colección.</h2>
+    </div>
+    <div class="benefit-grid">
+      <div class="benefit-card reveal">
+        <span class="benefit-num">01</span>
+        <div class="benefit-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
+        </div>
+        <h3>Productos originales</h3>
+        <p>100% sellado de fábrica. Distribución oficial verificada. Cada sobre, garantizado.</p>
+      </div>
+      <div class="benefit-card reveal">
+        <span class="benefit-num">02</span>
+        <div class="benefit-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        </div>
+        <h3>Pulls épicos</h3>
+        <p>Sets curados por la rareza y los alt arts. Maximiza la probabilidad de cazar un hit.</p>
+      </div>
+      <div class="benefit-card reveal">
+        <span class="benefit-num">03</span>
+        <div class="benefit-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><circle cx="17" cy="7" r="3"/><path d="M21 21v-1a4 4 0 0 0-3-3.87"/></svg>
+        </div>
+        <h3>Comunidad TCG</h3>
+        <p>Una jauría de cazadores. Discord, drops privados y ediciones exclusivas para miembros.</p>
+      </div>
+      <div class="benefit-card reveal">
+        <span class="benefit-num">04</span>
+        <div class="benefit-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="M16 10l6-3v10l-6-3z"/></svg>
+        </div>
+        <h3>Directos en vivo</h3>
+        <p>Pulls semanales, sobres rotos en stream y la adrenalina del hit a tiempo real con toda la comunidad.</p>
+      </div>
+      <div class="benefit-card reveal">
+        <span class="benefit-num">05</span>
+        <div class="benefit-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+        </div>
+        <h3>Packs exclusivos</h3>
+        <p>Bundles diseñados por Hit Hunters. Mezclas estratégicas de sets calientes y curados.</p>
+      </div>
+      <div class="benefit-card reveal">
+        <span class="benefit-num">06</span>
+        <div class="benefit-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <h3>Envío rápido</h3>
+        <p>24-48h en Península. Embalaje seguro, tracking en tiempo real. Tu sobre, sin esperas.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA FINAL -->
+<section class="cta-final">
+  <div class="smoke smoke-1"></div>
+  <div class="smoke smoke-2"></div>
+  <div class="container">
+    <div class="cta-tag reveal">
+      <span class="section-tag">// EL PRÓXIMO HIT</span>
+    </div>
+    <h2 class="reveal">
+      <span class="line1">EL PRÓXIMO HIT</span>
+      <span class="line2">PUEDE SER TUYO.</span>
+    </h2>
+    <a href="#pokemon" class="btn btn--primary reveal" style="font-size:1.05rem;padding:20px 36px;">
+      <span class="btn-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>
+      </span>
+      Abrir sobres
+      <span class="arr">→</span>
+    </a>
+    <div class="cta-foot reveal">
+      <span>Original</span>
+      <span class="sep"></span>
+      <span>Envío 24h</span>
+      <span class="sep"></span>
+      <span>Pulls en directo</span>
+      <span class="sep"></span>
+      <span>Comunidad activa</span>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="container">
+    <div class="foot-inner">
+      <div class="foot-brand">
+        <a href="#" class="nav-logo">
+          <span class="mark"><span class="dot"></span></span>
+          <span>HIT HUNTERS</span>
+        </a>
+        <p>La experiencia definitiva para cazadores de hits legendarios. Pokémon TCG y One Piece Card Game.</p>
+      </div>
+      <div class="foot-col">
+        <h4>// Pokémon</h4>
+        <ul>
+          <li><a href="#">Pokémon 151</a></li>
+          <li><a href="#">Prismatic Evolutions</a></li>
+          <li><a href="#">Crown Zenith</a></li>
+          <li><a href="#">Shiny Treasure EX</a></li>
+        </ul>
+      </div>
+      <div class="foot-col">
+        <h4>// One Piece</h4>
+        <ul>
+          <li><a href="#">OP-05 Awakening</a></li>
+          <li><a href="#">OP-06 Captains</a></li>
+          <li><a href="#">OP-07 500 Years</a></li>
+          <li><a href="#">OP-09 Emperors</a></li>
+        </ul>
+      </div>
+      <div class="foot-col">
+        <h4>// Hunters</h4>
+        <ul>
+          <li><a href="#">Comunidad</a></li>
+          <li><a href="#">Directos</a></li>
+          <li><a href="#">Discord</a></li>
+          <li><a href="#">Contacto</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>© 2026 Hit Hunters · Todos los derechos reservados</span>
+      <span>// Caza tu hit · Madrid · ES</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+/* ============================================================
+   1. CUSTOM CURSOR
+   ============================================================ */
+(function(){
+  const dot = document.querySelector('.cursor-dot');
+  const ring = document.querySelector('.cursor-ring');
+  if (matchMedia('(hover:none)').matches) return;
+  let mx = 0, my = 0, rx = 0, ry = 0;
+  document.addEventListener('mousemove', (e) => { mx = e.clientX; my = e.clientY; });
+  function loop(){
+    rx += (mx - rx) * 0.18;
+    ry += (my - ry) * 0.18;
+    dot.style.transform = `translate(${mx}px,${my}px) translate(-50%,-50%)`;
+    ring.style.transform = `translate(${rx}px,${ry}px) translate(-50%,-50%)`;
+    requestAnimationFrame(loop);
+  }
+  loop();
+  // Hover state on interactive
+  const hot = 'a, button, .btn, .pack, .tcg-card, .pack-card, .pack-buy-btn, .nav-cta';
+  document.querySelectorAll(hot).forEach(el => {
+    el.addEventListener('mouseenter', () => ring.classList.add('is-hot'));
+    el.addEventListener('mouseleave', () => ring.classList.remove('is-hot'));
+  });
+})();
+
+/* ============================================================
+   2. STARSCAPE
+   ============================================================ */
+(function(){
+  const c = document.getElementById('starscape');
+  const ctx = c.getContext('2d');
+  let stars = [];
+  const STAR_COUNT = 200;
+  function resize(){
+    c.width = innerWidth * devicePixelRatio;
+    c.height = innerHeight * devicePixelRatio;
+    c.style.width = innerWidth + 'px';
+    c.style.height = innerHeight + 'px';
+    ctx.scale(devicePixelRatio, devicePixelRatio);
+    stars = Array.from({length: STAR_COUNT}, () => ({
+      x: Math.random() * innerWidth,
+      y: Math.random() * innerHeight,
+      r: Math.random() * 1.4 + 0.2,
+      a: Math.random(),
+      twS: Math.random() * 0.018 + 0.004,
+      twP: Math.random() * Math.PI * 2,
+      drift: (Math.random() - 0.5) * 0.04,
+      hue: Math.random() > 0.85 ? 'gold' : 'white'
+    }));
+  }
+  resize();
+  addEventListener('resize', resize);
+
+  function draw(){
+    ctx.clearRect(0,0,innerWidth,innerHeight);
+    stars.forEach(s => {
+      s.twP += s.twS;
+      s.x += s.drift;
+      if (s.x < 0) s.x = innerWidth;
+      if (s.x > innerWidth) s.x = 0;
+      const tw = (Math.sin(s.twP) + 1) / 2;
+      const alpha = s.a * (0.3 + tw * 0.7);
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+      if (s.hue === 'gold'){
+        ctx.fillStyle = `rgba(246, 215, 122, ${alpha})`;
+      } else {
+        ctx.fillStyle = `rgba(220, 200, 255, ${alpha})`;
+      }
+      ctx.fill();
+    });
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+/* ============================================================
+   3. PARTICLES (floating embers)
+   ============================================================ */
+(function(){
+  const c = document.getElementById('particles');
+  const ctx = c.getContext('2d');
+  let parts = [];
+  const N = 50;
+  function resize(){
+    c.width = innerWidth * devicePixelRatio;
+    c.height = innerHeight * devicePixelRatio;
+    c.style.width = innerWidth + 'px';
+    c.style.height = innerHeight + 'px';
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.scale(devicePixelRatio, devicePixelRatio);
+    parts = Array.from({length: N}, () => spawn());
+  }
+  function spawn(){
+    return {
+      x: Math.random() * innerWidth,
+      y: innerHeight + Math.random() * innerHeight,
+      r: Math.random() * 1.8 + 0.6,
+      vy: -(Math.random() * 0.6 + 0.15),
+      vx: (Math.random() - 0.5) * 0.3,
+      a: Math.random() * 0.6 + 0.2,
+      hue: Math.random() > 0.6 ? 'gold' : 'violet',
+      life: Math.random() * 0.6 + 0.4
+    };
+  }
+  resize();
+  addEventListener('resize', resize);
+
+  function draw(){
+    ctx.clearRect(0,0,innerWidth,innerHeight);
+    parts.forEach((p, i) => {
+      p.y += p.vy;
+      p.x += p.vx;
+      p.a -= 0.0008;
+      if (p.y < -20 || p.a <= 0){
+        parts[i] = spawn();
+        parts[i].y = innerHeight + 10;
+        return;
+      }
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+      const col = p.hue === 'gold' ? `rgba(246, 215, 122, ${p.a})` : `rgba(200, 107, 255, ${p.a})`;
+      ctx.fillStyle = col;
+      ctx.shadowBlur = 14;
+      ctx.shadowColor = p.hue === 'gold' ? 'rgba(246,215,122,0.7)' : 'rgba(200,107,255,0.7)';
+      ctx.fill();
+    });
+    ctx.shadowBlur = 0;
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+/* ============================================================
+   4. MOUSE GLOW (spotlight)
+   ============================================================ */
+(function(){
+  const glow = document.getElementById('mouse-glow');
+  let mx = innerWidth/2, my = innerHeight/2, gx = mx, gy = my;
+  addEventListener('mousemove', (e) => { mx = e.clientX; my = e.clientY; });
+  function loop(){
+    gx += (mx - gx) * 0.08;
+    gy += (my - gy) * 0.08;
+    glow.style.left = gx + 'px';
+    glow.style.top = gy + 'px';
+    requestAnimationFrame(loop);
+  }
+  loop();
+})();
+
+/* ============================================================
+   5. SCROLL PROGRESS BAR
+   ============================================================ */
+(function(){
+  const bar = document.getElementById('progress-bar');
+  function update(){
+    const h = document.documentElement;
+    const max = h.scrollHeight - h.clientHeight;
+    const pct = Math.min(100, (scrollY / max) * 100);
+    bar.style.width = pct + '%';
+  }
+  addEventListener('scroll', update, { passive: true });
+  update();
+})();
+
+/* ============================================================
+   6. NAVBAR SHRINK ON SCROLL
+   ============================================================ */
+(function(){
+  const wrap = document.getElementById('navWrap');
+  function update(){
+    if (scrollY > 80) wrap.classList.add('shrunk');
+    else wrap.classList.remove('shrunk');
+  }
+  addEventListener('scroll', update, { passive: true });
+})();
+
+/* ============================================================
+   7. TILT EFFECTS (packs & cards)
+   ============================================================ */
+(function(){
+  function bindTilt(selector, maxDeg, scale){
+    document.querySelectorAll(selector).forEach(el => {
+      const inner = el.querySelector('.pack, .tcg-card') || el;
+      let rect = null;
+      el.addEventListener('mouseenter', () => {
+        rect = el.getBoundingClientRect();
+      });
+      el.addEventListener('mousemove', (e) => {
+        if (!rect) rect = el.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / rect.width - 0.5;
+        const y = (e.clientY - rect.top) / rect.height - 0.5;
+        const rotY = x * maxDeg;
+        const rotX = -y * maxDeg;
+        inner.style.transform = `perspective(1200px) rotateY(${rotY}deg) rotateX(${rotX}deg) translateZ(20px) scale(${scale})`;
+        // Update holo angle
+        const ang = (Math.atan2(y, x) * 180/Math.PI) + 180;
+        inner.style.setProperty('--ang', ang + 'deg');
+        inner.style.setProperty('--card-ang', ang + 'deg');
+        // For pack-card container, update mouse vars
+        const pc = el.closest('.pack-card');
+        if (pc){
+          const pcRect = pc.getBoundingClientRect();
+          pc.style.setProperty('--mx', ((e.clientX - pcRect.left) / pcRect.width * 100) + '%');
+          pc.style.setProperty('--my', ((e.clientY - pcRect.top) / pcRect.height * 100) + '%');
+        }
+      });
+      el.addEventListener('mouseleave', () => {
+        inner.style.transform = '';
+        rect = null;
+      });
+    });
+  }
+  bindTilt('.tilt', 18, 1.04);
+  bindTilt('.tilt-soft', 10, 1.02);
+})();
+
+/* ============================================================
+   8. PACK-CARD MOUSE TRACKING
+   ============================================================ */
+(function(){
+  document.querySelectorAll('.pack-card').forEach(card => {
+    card.addEventListener('mousemove', (e) => {
+      const r = card.getBoundingClientRect();
+      card.style.setProperty('--mx', ((e.clientX - r.left) / r.width * 100) + '%');
+      card.style.setProperty('--my', ((e.clientY - r.top) / r.height * 100) + '%');
+    });
+  });
+})();
+
+/* ============================================================
+   9. REVEAL ON SCROLL
+   ============================================================ */
+(function(){
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting){
+        entry.target.classList.add('in');
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.15, rootMargin: '0px 0px -50px 0px' });
+  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+})();
+
+/* ============================================================
+   10. GSAP PARALLAX ON HERO PACKS
+   ============================================================ */
+(function(){
+  if (typeof gsap === 'undefined') return;
+  gsap.registerPlugin(ScrollTrigger);
+
+  // Parallax: hero packs drift on scroll
+  gsap.to('.fp-1', {
+    yPercent: -25,
+    scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: 1 }
+  });
+  gsap.to('.fp-2', {
+    yPercent: -40,
+    scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: 1 }
+  });
+  gsap.to('.fp-3', {
+    yPercent: -15,
+    scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: 1 }
+  });
+
+  // Orbs parallax
+  gsap.to('.orb-1', { yPercent: 30, scrollTrigger: { start: 0, end: 'max', scrub: 2 }});
+  gsap.to('.orb-2', { yPercent: -20, scrollTrigger: { start: 0, end: 'max', scrub: 2 }});
+  gsap.to('.orb-3', { yPercent: 10, scrollTrigger: { start: 0, end: 'max', scrub: 2 }});
+
+  // Count-up for exp-stats
+  document.querySelectorAll('.exp-stat .v').forEach(el => {
+    const txt = el.textContent.trim();
+    // Only animate if numeric
+    const match = txt.match(/(\+?)(\d+(?:\.\d+)?)(.*)/);
+    if (!match) return;
+    const prefix = match[1];
+    const target = parseFloat(match[2]);
+    const suffix = match[3];
+    el.textContent = prefix + '0' + suffix;
+    ScrollTrigger.create({
+      trigger: el,
+      start: 'top 85%',
+      once: true,
+      onEnter: () => {
+        gsap.to({ n: 0 }, {
+          n: target,
+          duration: 1.6,
+          ease: 'power3.out',
+          onUpdate: function(){
+            const v = this.targets()[0].n;
+            const formatted = target % 1 === 0 ? Math.round(v) : v.toFixed(1);
+            el.textContent = prefix + formatted + suffix;
+          }
+        });
+      }
+    });
+  });
+
+  // Same for hero stats
+  document.querySelectorAll('.hero-stat .num').forEach(el => {
+    const txt = el.textContent.trim();
+    const match = txt.match(/(\+?)(\d+(?:\.\d+)?)([kK]?)(.*)/);
+    if (!match) return;
+    const prefix = match[1];
+    const target = parseFloat(match[2]);
+    const k = match[3];
+    const suffix = match[4];
+    el.textContent = prefix + '0' + k + suffix;
+    ScrollTrigger.create({
+      trigger: el,
+      start: 'top 90%',
+      once: true,
+      onEnter: () => {
+        gsap.to({ n: 0 }, {
+          n: target,
+          duration: 1.8,
+          ease: 'power3.out',
+          onUpdate: function(){
+            const v = this.targets()[0].n;
+            const formatted = target % 1 === 0 ? Math.round(v) : v.toFixed(1);
+            el.textContent = prefix + formatted + k + suffix;
+          }
+        });
+      }
+    });
+  });
+})();
+
+/* ============================================================
+   11. SMOOTH SCROLL ANCHORS
+   ============================================================ */
+(function(){
+  document.querySelectorAll('a[href^="#"]').forEach(a => {
+    a.addEventListener('click', (e) => {
+      const id = a.getAttribute('href');
+      if (id.length <= 1) return;
+      const target = document.querySelector(id);
+      if (!target) return;
+      e.preventDefault();
+      const y = target.getBoundingClientRect().top + scrollY - 80;
+      window.scrollTo({ top: y, behavior: 'smooth' });
+    });
+  });
+})();
+
+/* ============================================================
+   12. ANIMATE HOLOGRAPHIC FOIL ANGLE OVER TIME (subtle)
+   ============================================================ */
+(function(){
+  let t = 0;
+  function tick(){
+    t += 0.6;
+    document.querySelectorAll('.tcg-card:not(:hover)').forEach((c, i) => {
+      c.style.setProperty('--card-ang', (t + i * 45) + 'deg');
+    });
+    requestAnimationFrame(tick);
+  }
+  tick();
+})();
+</script>
+
+<img src="images/P4.png" class="haunter-floating">
+</body>
+</html>
